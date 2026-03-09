@@ -143,16 +143,6 @@ export function BridgePanel() {
             </div>
           )}
 
-          {/* Connected wallet indicator for Ethereum source */}
-          {sourceChain === "ethereum" && isConnected && (
-            <div className="mb-3 px-4 py-2 bg-black/20 rounded-xl">
-              <span className="text-xs text-zinc-500">Wallet: </span>
-              <span className="text-xs text-zinc-300 font-mono">
-                {address?.slice(0, 6)}...{address?.slice(-4)}
-              </span>
-            </div>
-          )}
-
           <div className="bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3">
             <AmountInput
               value={amount}
@@ -163,7 +153,7 @@ export function BridgePanel() {
         </div>
 
         {/* Swap Button */}
-        <div className="flex justify-center -my-2 relative z-10">
+        <div className="flex justify-center my-3 relative z-10">
           <button
             onClick={swap}
             className="p-2.5 bg-zinc-800 border border-white/[0.1] rounded-xl hover:bg-zinc-700 transition-all hover:rotate-180 duration-300 cursor-pointer"
@@ -173,7 +163,7 @@ export function BridgePanel() {
         </div>
 
         {/* Transfer To */}
-        <div className="mt-1">
+        <div>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-zinc-500 uppercase tracking-wider">
               Transfer to
@@ -200,15 +190,6 @@ export function BridgePanel() {
             </div>
           )}
 
-          {/* Connected wallet indicator for Ethereum destination */}
-          {destChain === "ethereum" && isConnected && (
-            <div className="mt-3 px-4 py-2 bg-black/20 rounded-xl">
-              <span className="text-xs text-zinc-500">Receiving on: </span>
-              <span className="text-xs text-zinc-300 font-mono">
-                {address?.slice(0, 6)}...{address?.slice(-4)}
-              </span>
-            </div>
-          )}
         </div>
 
         {/* Bridge Button */}
