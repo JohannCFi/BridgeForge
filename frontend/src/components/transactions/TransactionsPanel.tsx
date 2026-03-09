@@ -34,9 +34,12 @@ export function TransactionsPanel() {
           </div>
         )}
 
-        {transfers?.map((tx) => (
-          <TransactionRow key={tx.id} transfer={tx} />
-        ))}
+        {transfers
+          ?.slice()
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .map((tx) => (
+            <TransactionRow key={tx.id} transfer={tx} />
+          ))}
       </div>
     </div>
   );
