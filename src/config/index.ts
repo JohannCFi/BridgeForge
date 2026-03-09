@@ -40,14 +40,6 @@ export const chainConfigs: Record<Chain, ChainConfig> = {
     tokenAddress: process.env.XRPL_ISSUER_ADDRESS || "",
     explorerUrl: "https://testnet.xrpl.org",
   },
-  stellar: {
-    chain: "stellar",
-    name: "Stellar Testnet",
-    rpcUrl: process.env.STELLAR_RPC_URL || "https://horizon-testnet.stellar.org",
-    testnet: true,
-    tokenAddress: process.env.STELLAR_ISSUER_ADDRESS || "",
-    explorerUrl: "https://stellar.expert/explorer/testnet",
-  },
 };
 
 /** Server config */
@@ -61,6 +53,5 @@ export const operatorKeys = {
   ethereum: process.env.ETHEREUM_PRIVATE_KEY || "",
   solana: process.env.SOLANA_PRIVATE_KEY || "",
   xrpl: process.env.XRPL_PRIVATE_KEY || "",
-  stellar: process.env.STELLAR_PRIVATE_KEY || "",
   attestation: process.env.ATTESTATION_PRIVATE_KEY || "",
 };

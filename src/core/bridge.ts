@@ -130,6 +130,12 @@ export class BridgeEngine {
     return Array.from(this.transfers.values());
   }
 
+  /** Get token balance for an address on a specific chain */
+  async getBalance(chain: Chain, address: string): Promise<string> {
+    const adapter = this.adapters[chain];
+    return adapter.getBalance(address);
+  }
+
   private validateRequest(request: TransferRequest): void {
     if (request.sourceChain === request.destinationChain) {
       throw new Error("Source and destination chains must be different");

@@ -1,62 +1,146 @@
 // ============================================================
 // BridgeForge – Solana Chain Adapter
 // Handles burn/mint of testEURCV on Solana (Devnet)
+//
+// Solana uses SPL tokens:
+// - Mint authority (operator) can mint new tokens
+// - Anyone can burn their own tokens
+// - Each holder needs an Associated Token Account (ATA)
 // ============================================================
 
-import { ChainAdapter, BurnEvent } from "../../types";
-import { chainConfigs, operatorKeys } from "../../config";
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+} from "@solana/web3.js";
+import {
+  burn,
+  mintTo,
+  getOrCreateAssociatedTokenAccount,
+  getAssociatedTokenAddress,
+  getAccount,
+} from "@solana/spl-token";
+import { ChainAdapter, BurnEvent } from "../../types/index.js";
+import { chainConfigs, operatorKeys } from "../../config/index.js";
 
-/**
- * Solana adapter – skeleton for the POC.
- *
- * Solana uses SPL tokens instead of ERC-20.
- * Key differences:
- * - Tokens are managed by the SPL Token Program
- * - Mint authority (our operator) can mint new tokens
- * - Burn requires the token holder's signature
- * - Addresses are base58-encoded public keys
- *
- * Dependencies: @solana/web3.js, @solana/spl-token
- */
 export class SolanaAdapter implements ChainAdapter {
   chain = "solana" as const;
+  private connection: Connection;
+  private operatorKeypair: Keypair | null = null;
+  private mintAddress: PublicKey | null = null;
 
   constructor() {
-    // TODO: Initialize Solana connection & load operator keypair
-    // const connection = new Connection(chainConfigs.solana.rpcUrl);
-    // const operatorKeypair = Keypair.fromSecretKey(...)
-    console.log("[Solana] Adapter initialized (skeleton)");
+    this.connection = new Connection(chainConfigs.solana.rpcUrl, "confirmed");
+
+    const keyStr = operatorKeys.solana;
+    if (keyStr) {
+      const secretKey = Uint8Array.from(JSON.parse(keyStr));
+      this.operatorKeypair = Keypair.fromSecretKey(secretKey);
+    }
+
+    const tokenAddr = chainConfigs.solana.tokenAddress;
+    if (tokenAddr) {
+      this.mintAddress = new PublicKey(tokenAddr);
+    }
+
+    console.log("[Solana] Adapter initialized");
   }
 
   async burn(senderAddress: string, amount: string): Promise<string> {
-    // TODO: Implement SPL token burn
-    // 1. Get the sender's Associated Token Account (ATA)
-    // 2. Call spl.burn(connection, payer, ata, mint, owner, amount)
-    throw new Error("[Solana] burn() not yet implemented");
+    if (!this.operatorKeypair || !this.mintAddress) {
+      throw new Error("[Solana] Wallet or mint not configured");
+    }
+
+    const owner = new PublicKey(senderAddress);
+    const ata = await getAssociatedTokenAddress(this.mintAddress, owner);
+
+    const parsedAmount = Math.round(parseFloat(amount) * 10 ** 6);
+
+    const txSig = await burn(
+      this.connection,
+      this.operatorKeypair, // payer
+      ata, // token account to burn from
+      this.mintAddress, // token mint
+      this.operatorKeypair, // owner of the token account (POC: operator)
+      parsedAmount
+    );
+
+    console.log(`[Solana] Burn tx confirmed: ${txSig}`);
+    return txSig;
   }
 
   async mint(recipientAddress: string, amount: string): Promise<string> {
-    // TODO: Implement SPL token mint
-    // 1. Get or create the recipient's ATA
-    // 2. Call spl.mintTo(connection, payer, mint, ata, mintAuthority, amount)
-    throw new Error("[Solana] mint() not yet implemented");
+    if (!this.operatorKeypair || !this.mintAddress) {
+      throw new Error("[Solana] Wallet or mint not configured");
+    }
+
+    const recipient = new PublicKey(recipientAddress);
+
+    // Create ATA for recipient if it doesn't exist
+    const ata = await getOrCreateAssociatedTokenAccount(
+      this.connection,
+      this.operatorKeypair, // payer
+      this.mintAddress, // token mint
+      recipient // owner
+    );
+
+    const parsedAmount = Math.round(parseFloat(amount) * 10 ** 6);
+
+    const txSig = await mintTo(
+      this.connection,
+      this.operatorKeypair, // payer
+      this.mintAddress, // token mint
+      ata.address, // destination
+      this.operatorKeypair, // mint authority
+      parsedAmount
+    );
+
+    console.log(`[Solana] Mint tx confirmed: ${txSig}`);
+    return txSig;
   }
 
   listenForBurns(handler: (event: BurnEvent) => void): void {
-    // TODO: Subscribe to token account changes or use onLogs
-    // connection.onLogs(mintAddress, callback)
-    console.log("[Solana] Burn event listener not yet implemented");
+    if (!this.mintAddress) {
+      console.log("[Solana] Mint not configured, skipping burn listener");
+      return;
+    }
+
+    // Listen for logs mentioning the token mint (burn events)
+    this.connection.onLogs(
+      this.mintAddress,
+      (logs) => {
+        // SPL Token burn instruction contains "Burn" in the logs
+        if (logs.logs.some((log) => log.includes("Burn"))) {
+          handler({
+            chain: "solana",
+            txHash: logs.signature,
+            sender: "", // Would need to parse the tx for the actual sender
+            amount: "0", // Would need to parse the tx for the actual amount
+            timestamp: Date.now(),
+          });
+        }
+      },
+      "confirmed"
+    );
+
+    console.log("[Solana] Listening for burn events...");
   }
 
   async getBalance(address: string): Promise<string> {
-    // TODO: Get SPL token balance
-    // const ata = getAssociatedTokenAddress(mint, owner)
-    // const balance = await connection.getTokenAccountBalance(ata)
-    throw new Error("[Solana] getBalance() not yet implemented");
+    if (!this.mintAddress) throw new Error("[Solana] Mint not configured");
+
+    const owner = new PublicKey(address);
+    const ata = await getAssociatedTokenAddress(this.mintAddress, owner);
+
+    try {
+      const account = await getAccount(this.connection, ata);
+      return (Number(account.amount) / 10 ** 6).toString();
+    } catch {
+      return "0"; // ATA doesn't exist = no balance
+    }
   }
 
   isValidAddress(address: string): boolean {
-    // Base58 check, 32-44 characters
     return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
   }
 }

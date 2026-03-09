@@ -24,6 +24,12 @@ export class XrplAdapter implements ChainAdapter {
   constructor() {
     this.client = new xrpl.Client(chainConfigs.xrpl.rpcUrl);
     this.issuerAddress = chainConfigs.xrpl.tokenAddress;
+
+    if (!this.issuerAddress) {
+      console.warn("[XRPL] Missing issuer address – adapter disabled");
+    } else {
+      console.log("[XRPL] Adapter initialized");
+    }
   }
 
   private async ensureConnected(): Promise<void> {
@@ -40,11 +46,29 @@ export class XrplAdapter implements ChainAdapter {
 
   async burn(senderAddress: string, amount: string): Promise<string> {
     await this.ensureConnected();
+    if (!this.issuerWallet) throw new Error("XRPL wallet not configured");
 
-    // On XRPL, burn = send tokens BACK to the issuer
+    // On XRPL, burn = send tokens BACK to the issuer.
+    // The sender must sign their own tx. For the POC, we derive a wallet
+    // from the XRPL_SENDER_KEY env var, or fall back to the issuer wallet
+    // if the sender IS the issuer.
+    let senderWallet: xrpl.Wallet;
+    if (senderAddress === this.issuerWallet.classicAddress) {
+      senderWallet = this.issuerWallet;
+    } else {
+      const senderKey = process.env.XRPL_SENDER_KEY;
+      if (senderKey) {
+        senderWallet = xrpl.Wallet.fromSeed(senderKey);
+      } else {
+        throw new Error(`[XRPL] No private key available for sender ${senderAddress}. Set XRPL_SENDER_KEY in .env`);
+      }
+    }
+
+    console.log(`[XRPL] Burn: sender=${senderAddress}, signer=${senderWallet.classicAddress}, amount=${amount}`);
+
     const payment: xrpl.Payment = {
       TransactionType: "Payment",
-      Account: senderAddress,
+      Account: senderWallet.classicAddress,
       Destination: this.issuerAddress,
       Amount: {
         currency: CURRENCY_CODE,
@@ -53,10 +77,9 @@ export class XrplAdapter implements ChainAdapter {
       },
     };
 
-    if (!this.issuerWallet) throw new Error("XRPL wallet not configured");
-    const result = await this.client.submitAndWait(payment, {
-      wallet: this.issuerWallet,
-    });
+    const prepared = await this.client.autofill(payment);
+    const signed = senderWallet.sign(prepared);
+    const result = await this.client.submitAndWait(signed.tx_blob);
 
     const txHash = result.result.hash;
     console.log(`[XRPL] Burn tx confirmed: ${txHash}`);
@@ -95,23 +118,26 @@ export class XrplAdapter implements ChainAdapter {
         accounts: [this.issuerAddress],
       });
 
-      this.client.on("transaction", (tx) => {
-        const transaction = tx.transaction;
+      this.client.on("transaction", (tx: Record<string, unknown>) => {
+        const transaction = tx.transaction as Record<string, unknown> | undefined;
 
         // Filter: only incoming payments with tEURCV
         if (
           transaction?.TransactionType === "Payment" &&
           transaction.Destination === this.issuerAddress &&
           typeof transaction.Amount === "object" &&
-          transaction.Amount.currency === CURRENCY_CODE
+          transaction.Amount !== null
         ) {
-          handler({
-            chain: "xrpl",
-            txHash: transaction.hash ?? "",
-            sender: transaction.Account,
-            amount: transaction.Amount.value,
-            timestamp: Date.now(),
-          });
+          const amount = transaction.Amount as { currency: string; value: string };
+          if (amount.currency === CURRENCY_CODE) {
+            handler({
+              chain: "xrpl",
+              txHash: (transaction.hash as string) ?? "",
+              sender: transaction.Account as string,
+              amount: amount.value,
+              timestamp: Date.now(),
+            });
+          }
         }
       });
 

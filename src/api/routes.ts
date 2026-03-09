@@ -8,6 +8,8 @@ import { Router, Request, Response } from "express";
 import { BridgeEngine } from "../core/bridge";
 import { TransferRequest, ApiResponse, Chain } from "../types";
 
+const VALID_CHAINS: Chain[] = ["ethereum", "solana", "xrpl"];
+
 export function createRouter(bridge: BridgeEngine): Router {
   const router = Router();
 
@@ -22,12 +24,37 @@ export function createRouter(bridge: BridgeEngine): Router {
    */
   router.post("/transfer", async (req: Request, res: Response) => {
     try {
+      const { sourceChain, destinationChain, senderAddress, recipientAddress, amount } = req.body;
+
+      // Validate required fields
+      const missing = [
+        !sourceChain && "sourceChain",
+        !destinationChain && "destinationChain",
+        !senderAddress && "senderAddress",
+        !recipientAddress && "recipientAddress",
+        !amount && "amount",
+      ].filter(Boolean);
+      if (missing.length > 0) {
+        res.status(400).json({ success: false, error: `Missing fields: ${missing.join(", ")}` });
+        return;
+      }
+
+      // Validate chains
+      if (!VALID_CHAINS.includes(sourceChain)) {
+        res.status(400).json({ success: false, error: `Invalid sourceChain: ${sourceChain}` });
+        return;
+      }
+      if (!VALID_CHAINS.includes(destinationChain)) {
+        res.status(400).json({ success: false, error: `Invalid destinationChain: ${destinationChain}` });
+        return;
+      }
+
       const request: TransferRequest = {
-        sourceChain: req.body.sourceChain,
-        destinationChain: req.body.destinationChain,
-        senderAddress: req.body.senderAddress,
-        recipientAddress: req.body.recipientAddress,
-        amount: req.body.amount,
+        sourceChain,
+        destinationChain,
+        senderAddress,
+        recipientAddress,
+        amount: String(amount),
         token: "testEURCV",
       };
 
@@ -53,7 +80,7 @@ export function createRouter(bridge: BridgeEngine): Router {
    * Clients can poll this to track progress.
    */
   router.get("/transfer/:id", (req: Request, res: Response) => {
-    const transfer = bridge.getTransfer(req.params.id);
+    const transfer = bridge.getTransfer(req.params.id as string);
 
     if (!transfer) {
       const response: ApiResponse = { success: false, error: "Transfer not found" };
@@ -76,11 +103,35 @@ export function createRouter(bridge: BridgeEngine): Router {
   });
 
   /**
+   * GET /api/balance/:chain/:address
+   * Get testEURCV balance for an address on a specific chain.
+   */
+  router.get("/balance/:chain/:address", async (req: Request, res: Response) => {
+    try {
+      const chain = req.params.chain as Chain;
+      const address = req.params.address as string;
+
+      if (!VALID_CHAINS.includes(chain)) {
+        res.status(400).json({ success: false, error: `Invalid chain: ${chain}` });
+        return;
+      }
+
+      const balance = await bridge.getBalance(chain, address);
+      res.json({ success: true, data: { chain, address, balance, token: "testEURCV" } });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
+
+  /**
    * GET /api/chains
    * List supported chains. Useful for the frontend to build dropdowns.
    */
   router.get("/chains", (_req: Request, res: Response) => {
-    const chains: Chain[] = ["ethereum", "solana", "xrpl", "stellar"];
+    const chains: Chain[] = VALID_CHAINS;
     const response: ApiResponse = { success: true, data: chains };
     res.json(response);
   });
