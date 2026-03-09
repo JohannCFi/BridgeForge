@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" fill="none">
+  <!-- F with red dot -->
+  <rect x="0" y="0" width="6" height="32" fill="white"/>
+  <rect x="0" y="0" width="22" height="6" fill="white"/>
+  <rect x="0" y="13" width="18" height="5" fill="white"/>
+  <rect x="17" y="0" width="6" height="6" rx="3" fill="#E11D48"/>
+  <!-- O -->
+  <path d="M32 16C32 7.2 39.2 0 48 0C56.8 0 64 7.2 64 16C64 24.8 56.8 32 48 32C39.2 32 32 24.8 32 16ZM38 16C38 21.5 42.5 26 48 26C53.5 26 58 21.5 58 16C58 10.5 53.5 6 48 6C42.5 6 38 10.5 38 16Z" fill="white"/>
+  <!-- R -->
+  <path d="M72 0H88C94.6 0 100 5.4 100 12C100 16.8 97 20.8 92.8 22.4L101 32H94L86.4 23H78V32H72V0ZM78 6V17H88C91.3 17 94 14.3 94 11C94 7.7 91.3 5 88 5H78Z" fill="white"/>
+  <!-- G -->
+  <path d="M108 16C108 7.2 115.2 0 124 0C130 0 135.2 3.2 137.8 8L132.6 11C131 8 127.8 6 124 6C118.5 6 114 10.5 114 16C114 21.5 118.5 26 124 26C127.4 26 130.4 24.4 132 21.8V19H124V14H138V24C135 29 129.8 32 124 32C115.2 32 108 24.8 108 16Z" fill="white"/>
+  <!-- E -->
+  <rect x="146" y="0" width="6" height="32" fill="white"/>
+  <rect x="146" y="0" width="22" height="6" fill="white"/>
+  <rect x="146" y="13" width="18" height="5" fill="white"/>
+  <rect x="146" y="26" width="22" height="6" fill="white"/>
+  <!-- Societe Generale Group text -->
+  <text x="0" y="39" font-family="Arial, sans-serif" font-size="5.5" fill="rgba(255,255,255,0.4)" letter-spacing="1.5">SOCIETE GENERALE GROUP</text>
+</svg>
