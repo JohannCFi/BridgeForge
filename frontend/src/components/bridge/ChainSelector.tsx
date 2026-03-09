@@ -1,19 +1,18 @@
 import { ChevronDown } from "lucide-react";
-import type { Chain, ChainMeta } from "../../types";
+import type { Chain } from "../../types";
 import { CHAINS } from "../../config/chains";
 import { useState, useRef, useEffect } from "react";
 
 interface ChainSelectorProps {
   value: Chain;
   onChange: (chain: Chain) => void;
-  exclude?: Chain;
 }
 
-export function ChainSelector({ value, onChange, exclude }: ChainSelectorProps) {
+export function ChainSelector({ value, onChange }: ChainSelectorProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const selected = CHAINS.find((c) => c.id === value)!;
-  const options = CHAINS.filter((c) => c.id !== exclude);
+  const options = CHAINS;
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -36,7 +35,7 @@ export function ChainSelector({ value, onChange, exclude }: ChainSelectorProps) 
 
       {open && (
         <div className="absolute top-full left-0 mt-2 w-56 bg-zinc-900 border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50">
-          {options.map((chain: ChainMeta) => (
+          {options.map((chain) => (
             <button
               key={chain.id}
               onClick={() => {

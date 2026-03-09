@@ -11,61 +11,79 @@ export function BridgePanel() {
   const [sourceChain, setSourceChain] = useState<Chain>("ethereum");
   const [destChain, setDestChain] = useState<Chain>("xrpl");
   const [amount, setAmount] = useState("");
+  const [senderAddress, setSenderAddress] = useState("");
   const [recipientAddress, setRecipientAddress] = useState("");
-  const [showRecipient, setShowRecipient] = useState(false);
 
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const bridge = useBridge();
 
-  // Get balance for source chain (only if Ethereum and connected)
-  const senderAddr = sourceChain === "ethereum" && address ? address : "";
-  const { data: balanceData } = useBalance(sourceChain, senderAddr);
-  const balance = balanceData?.balance ?? "0";
-
   const swap = () => {
-    setSourceChain(destChain);
-    setDestChain(sourceChain);
+    const prevSource = sourceChain;
+    const prevDest = destChain;
+    const prevSender = senderAddress;
+    const prevRecipient = recipientAddress;
+    setSourceChain(prevDest);
+    setDestChain(prevSource);
+    setSenderAddress(prevRecipient);
+    setRecipientAddress(prevSender);
   };
 
+  // Resolve addresses: use wallet if chain is Ethereum and connected, otherwise use manual input
+  const resolvedSender =
+    sourceChain === "ethereum" && isConnected ? address! : senderAddress;
+  const resolvedRecipient =
+    destChain === "ethereum" && isConnected ? address! : recipientAddress;
+
+  // Do we need a manual sender input? (source is NOT Ethereum, or not connected)
+  const needsSenderInput =
+    sourceChain !== "ethereum" || !isConnected;
+  // Do we need a manual recipient input? (dest is NOT Ethereum, or not connected)
+  const needsRecipientInput =
+    destChain !== "ethereum" || !isConnected;
+
+  // Balance
+  const { data: balanceData } = useBalance(
+    sourceChain,
+    resolvedSender || ""
+  );
+  const balance = balanceData?.balance ?? "0";
+
   const handleBridge = async () => {
-    if (!isConnected && sourceChain === "ethereum") {
+    if (!isConnected && (sourceChain === "ethereum" || destChain === "ethereum")) {
       openConnectModal?.();
       return;
     }
 
-    const sender = sourceChain === "ethereum" ? address! : recipientAddress;
-    const recipient =
-      destChain === "ethereum" ? address! : recipientAddress;
-
-    if (!sender || !recipient || !amount) return;
+    if (!resolvedSender || !resolvedRecipient || !amount) return;
 
     try {
       await bridge.mutateAsync({
         sourceChain,
         destinationChain: destChain,
-        senderAddress: sender,
-        recipientAddress: recipient,
+        senderAddress: resolvedSender,
+        recipientAddress: resolvedRecipient,
         amount,
       });
       setAmount("");
+      setSenderAddress("");
       setRecipientAddress("");
     } catch {
       // Error handled by mutation state
     }
   };
 
-  const needsManualAddress =
-    (sourceChain !== "ethereum" && destChain !== "ethereum") ||
-    (sourceChain !== "ethereum" && !isConnected) ||
-    (destChain !== "ethereum" && sourceChain === "ethereum");
-
   const buttonLabel = () => {
     if (bridge.isPending) return "Bridging...";
-    if (!isConnected && sourceChain === "ethereum")
+    if (
+      !isConnected &&
+      (sourceChain === "ethereum" || destChain === "ethereum")
+    )
       return "Connect wallet and bridge";
     if (!amount || parseFloat(amount) <= 0) return "Enter an amount";
-    if (needsManualAddress && !recipientAddress) return "Enter recipient address";
+    if (needsSenderInput && !senderAddress) return "Enter sender address";
+    if (needsRecipientInput && !recipientAddress)
+      return "Enter recipient address";
     return "Bridge tEURCV";
   };
 
@@ -73,7 +91,8 @@ export function BridgePanel() {
     !bridge.isPending &&
     !!amount &&
     parseFloat(amount) > 0 &&
-    (!needsManualAddress || !!recipientAddress);
+    !!resolvedSender &&
+    !!resolvedRecipient;
 
   return (
     <div className="w-full max-w-lg mx-auto">
@@ -104,10 +123,36 @@ export function BridgePanel() {
           <div className="mb-3">
             <ChainSelector
               value={sourceChain}
-              onChange={setSourceChain}
-              exclude={destChain}
+              onChange={(chain) => {
+                if (chain === destChain) swap();
+                else setSourceChain(chain);
+              }}
             />
           </div>
+
+          {/* Sender address for non-EVM source */}
+          {needsSenderInput && (
+            <div className="mb-3">
+              <input
+                type="text"
+                placeholder={`Your ${sourceChain === "solana" ? "Solana" : "XRPL"} address`}
+                value={senderAddress}
+                onChange={(e) => setSenderAddress(e.target.value)}
+                className="w-full bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none focus:border-white/20 transition-colors"
+              />
+            </div>
+          )}
+
+          {/* Connected wallet indicator for Ethereum source */}
+          {sourceChain === "ethereum" && isConnected && (
+            <div className="mb-3 px-4 py-2 bg-black/20 rounded-xl">
+              <span className="text-xs text-zinc-500">Wallet: </span>
+              <span className="text-xs text-zinc-300 font-mono">
+                {address?.slice(0, 6)}...{address?.slice(-4)}
+              </span>
+            </div>
+          )}
+
           <div className="bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3">
             <AmountInput
               value={amount}
@@ -133,31 +178,35 @@ export function BridgePanel() {
             <span className="text-xs text-zinc-500 uppercase tracking-wider">
               Transfer to
             </span>
-            {!showRecipient && (
-              <button
-                onClick={() => setShowRecipient(true)}
-                className="text-xs text-zinc-500 hover:text-white transition-colors cursor-pointer"
-              >
-                + Transfer to different address
-              </button>
-            )}
           </div>
           <ChainSelector
             value={destChain}
-            onChange={setDestChain}
-            exclude={sourceChain}
+            onChange={(chain) => {
+              if (chain === sourceChain) swap();
+              else setDestChain(chain);
+            }}
           />
 
-          {/* Recipient address (for non-EVM chains or custom address) */}
-          {(needsManualAddress || showRecipient) && (
+          {/* Recipient address for non-EVM destination */}
+          {needsRecipientInput && (
             <div className="mt-3">
               <input
                 type="text"
-                placeholder="Recipient address"
+                placeholder={`Recipient ${destChain === "solana" ? "Solana" : destChain === "xrpl" ? "XRPL" : ""} address`}
                 value={recipientAddress}
                 onChange={(e) => setRecipientAddress(e.target.value)}
                 className="w-full bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none focus:border-white/20 transition-colors"
               />
+            </div>
+          )}
+
+          {/* Connected wallet indicator for Ethereum destination */}
+          {destChain === "ethereum" && isConnected && (
+            <div className="mt-3 px-4 py-2 bg-black/20 rounded-xl">
+              <span className="text-xs text-zinc-500">Receiving on: </span>
+              <span className="text-xs text-zinc-300 font-mono">
+                {address?.slice(0, 6)}...{address?.slice(-4)}
+              </span>
             </div>
           )}
         </div>
@@ -165,9 +214,14 @@ export function BridgePanel() {
         {/* Bridge Button */}
         <button
           onClick={handleBridge}
-          disabled={!canBridge && isConnected}
+          disabled={!canBridge && !(
+            !isConnected &&
+            (sourceChain === "ethereum" || destChain === "ethereum")
+          )}
           className={`w-full mt-5 py-4 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-            canBridge || (!isConnected && sourceChain === "ethereum")
+            canBridge ||
+            (!isConnected &&
+              (sourceChain === "ethereum" || destChain === "ethereum"))
               ? "bg-white text-black hover:bg-zinc-200"
               : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
           }`}

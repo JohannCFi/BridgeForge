@@ -17,10 +17,8 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   return (
     <aside className="fixed left-0 top-0 h-full w-60 bg-black/80 backdrop-blur-xl border-r border-white/[0.08] flex flex-col z-50">
       {/* Logo */}
-      <div className="px-6 py-6 border-b border-white/[0.08]">
-        <div className="flex items-center gap-2">
-          <img src="/forge-logo.svg" alt="Forge" className="h-7" />
-        </div>
+      <div className="px-4 py-5 border-b border-white/[0.08]">
+        <img src="/forge-logo.svg" alt="Forge" className="w-full h-auto" />
       </div>
 
       {/* Navigation */}
