@@ -18,10 +18,10 @@ export function TransactionsPanel() {
   const { data: transfers, isLoading } = useTransfers();
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="w-full max-w-lg mx-auto">
       <h1 className="text-xl font-semibold text-white mb-6">Transactions</h1>
 
-      <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden">
+      <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden max-h-[500px] overflow-y-auto">
         {isLoading && (
           <div className="px-5 py-12 text-center text-zinc-500 text-sm">
             Loading...
