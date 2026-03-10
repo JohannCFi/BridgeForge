@@ -33,7 +33,8 @@ export class XrplAdapter implements ChainAdapter {
   }
 
   private async ensureConnected(): Promise<void> {
-    if (!this.connected) {
+    if (!this.client.isConnected()) {
+      this.connected = false;
       await this.client.connect();
       this.connected = true;
 

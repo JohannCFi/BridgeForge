@@ -35,12 +35,10 @@ export function BridgePanel() {
   const resolvedRecipient =
     destChain === "ethereum" && isConnected ? address! : recipientAddress;
 
-  // Do we need a manual sender input? (source is NOT Ethereum, or not connected)
-  const needsSenderInput =
-    sourceChain !== "ethereum" || !isConnected;
-  // Do we need a manual recipient input? (dest is NOT Ethereum, or not connected)
-  const needsRecipientInput =
-    destChain !== "ethereum" || !isConnected;
+  // Manual address input only for non-EVM chains (XRPL, Solana).
+  // For Ethereum, the wallet connection handles the address.
+  const needsSenderInput = sourceChain !== "ethereum";
+  const needsRecipientInput = destChain !== "ethereum";
 
   // Balance
   const { data: balanceData } = useBalance(
@@ -182,7 +180,7 @@ export function BridgePanel() {
             <div className="mt-3">
               <input
                 type="text"
-                placeholder={`Recipient ${destChain === "solana" ? "Solana" : destChain === "xrpl" ? "XRPL" : ""} address`}
+                placeholder={`Recipient ${destChain === "solana" ? "Solana" : "XRPL"} address`}
                 value={recipientAddress}
                 onChange={(e) => setRecipientAddress(e.target.value)}
                 className="w-full bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none focus:border-white/20 transition-colors"
