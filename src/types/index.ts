@@ -4,7 +4,7 @@
 // ============================================================
 
 /** Supported blockchain networks */
-export type Chain = "ethereum" | "solana" | "xrpl";
+export type Chain = "ethereum" | "solana" | "xrpl" | "stellar";
 
 /** Transfer status lifecycle (mirrors CCTP flow) */
 export type TransferStatus =

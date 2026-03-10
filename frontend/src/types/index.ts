@@ -1,4 +1,4 @@
-export type Chain = "ethereum" | "solana" | "xrpl";
+export type Chain = "ethereum" | "solana" | "xrpl" | "stellar";
 
 export type TransferStatus =
   | "pending"

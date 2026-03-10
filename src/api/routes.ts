@@ -8,7 +8,7 @@ import { Router, Request, Response } from "express";
 import { BridgeEngine } from "../core/bridge";
 import { TransferRequest, ApiResponse, Chain } from "../types";
 
-const VALID_CHAINS: Chain[] = ["ethereum", "solana", "xrpl"];
+const VALID_CHAINS: Chain[] = ["ethereum", "solana", "xrpl", "stellar"];
 
 export function createRouter(bridge: BridgeEngine): Router {
   const router = Router();

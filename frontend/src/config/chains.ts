@@ -19,6 +19,12 @@ export const CHAINS: ChainMeta[] = [
     icon: "/icons/xrpl.svg",
     explorerUrl: "https://testnet.xrpl.org",
   },
+  {
+    id: "stellar",
+    name: "Stellar Testnet",
+    icon: "/icons/stellar.svg",
+    explorerUrl: "https://stellar.expert/explorer/testnet",
+  },
 ];
 
 export function getChain(id: string): ChainMeta | undefined {

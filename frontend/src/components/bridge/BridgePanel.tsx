@@ -71,7 +71,12 @@ export function BridgePanel() {
     }
   };
 
+  const sameChain = sourceChain === destChain;
+  const insufficientBalance =
+    !!amount && parseFloat(amount) > 0 && parseFloat(amount) > parseFloat(balance);
+
   const buttonLabel = () => {
+    if (sameChain) return "Cannot bridge to the same chain";
     if (bridge.isPending) return "Bridging...";
     if (
       !isConnected &&
@@ -79,6 +84,7 @@ export function BridgePanel() {
     )
       return "Connect wallet and bridge";
     if (!amount || parseFloat(amount) <= 0) return "Enter an amount";
+    if (insufficientBalance) return "Insufficient balance";
     if (needsSenderInput && !senderAddress) return "Enter sender address";
     if (needsRecipientInput && !recipientAddress)
       return "Enter recipient address";
@@ -86,6 +92,8 @@ export function BridgePanel() {
   };
 
   const canBridge =
+    !sameChain &&
+    !insufficientBalance &&
     !bridge.isPending &&
     !!amount &&
     parseFloat(amount) > 0 &&
@@ -122,8 +130,7 @@ export function BridgePanel() {
             <ChainSelector
               value={sourceChain}
               onChange={(chain) => {
-                if (chain === destChain) swap();
-                else setSourceChain(chain);
+                setSourceChain(chain);
               }}
             />
           </div>
@@ -133,7 +140,7 @@ export function BridgePanel() {
             <div className="mb-3">
               <input
                 type="text"
-                placeholder={`Your ${sourceChain === "solana" ? "Solana" : "XRPL"} address`}
+                placeholder={`Your ${sourceChain === "solana" ? "Solana" : sourceChain === "stellar" ? "Stellar" : "XRPL"} address`}
                 value={senderAddress}
                 onChange={(e) => setSenderAddress(e.target.value)}
                 className="w-full bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none focus:border-white/20 transition-colors"
@@ -170,8 +177,7 @@ export function BridgePanel() {
           <ChainSelector
             value={destChain}
             onChange={(chain) => {
-              if (chain === sourceChain) swap();
-              else setDestChain(chain);
+              setDestChain(chain);
             }}
           />
 
@@ -180,7 +186,7 @@ export function BridgePanel() {
             <div className="mt-3">
               <input
                 type="text"
-                placeholder={`Recipient ${destChain === "solana" ? "Solana" : "XRPL"} address`}
+                placeholder={`Recipient ${destChain === "solana" ? "Solana" : destChain === "stellar" ? "Stellar" : "XRPL"} address`}
                 value={recipientAddress}
                 onChange={(e) => setRecipientAddress(e.target.value)}
                 className="w-full bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none focus:border-white/20 transition-colors"
