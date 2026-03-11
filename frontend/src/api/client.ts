@@ -20,13 +20,25 @@ export const api = {
       `/balance/${chain}/${address}`
     ),
 
-  initiateTransfer: (req: TransferRequest) =>
+  /** Register a transfer intent (no burn yet). Returns transfer with ID. */
+  registerTransfer: (req: TransferRequest) =>
     request<Transfer>("/transfer", {
       method: "POST",
       body: JSON.stringify(req),
     }),
 
+  /** Confirm user has burned. Backend verifies, attests, mints. */
+  confirmBurn: (transferId: string, burnTxHash: string) =>
+    request<Transfer>(`/transfer/${transferId}/confirm-burn`, {
+      method: "POST",
+      body: JSON.stringify({ burnTxHash }),
+    }),
+
   getTransfer: (id: string) => request<Transfer>(`/transfer/${id}`),
 
   getTransfers: () => request<Transfer[]>("/transfers"),
+
+  /** Get chain configs (token addresses) needed to construct burn txs */
+  getConfig: () =>
+    request<Record<Chain, { tokenAddress: string }>>("/config"),
 };

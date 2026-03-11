@@ -1,160 +1,196 @@
 import { useState } from "react";
-import { ArrowDownUp, HelpCircle, Zap } from "lucide-react";
-import { useAccount } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { ArrowDownUp, HelpCircle, Loader2 } from "lucide-react";
 import type { Chain } from "../../types";
-import { useBalance, useBridge } from "../../api/hooks";
+import {
+  useBalance,
+  useChainConfig,
+  useRegisterTransfer,
+  useConfirmBurn,
+} from "../../api/hooks";
+import { useChainWallet } from "../../hooks/useWallet";
 import { ChainSelector } from "./ChainSelector";
 import { AmountInput } from "./AmountInput";
+import { WalletModal } from "./WalletModal";
+import { WalletBadge } from "./WalletBadge";
+
+type BridgeStep = "idle" | "registering" | "burning" | "confirming" | "done" | "error";
 
 export function BridgePanel() {
   const [sourceChain, setSourceChain] = useState<Chain>("ethereum");
-  const [destChain, setDestChain] = useState<Chain>("xrpl");
+  const [destChain, setDestChain] = useState<Chain>("solana");
   const [amount, setAmount] = useState("");
-  const [senderAddress, setSenderAddress] = useState("");
-  const [recipientAddress, setRecipientAddress] = useState("");
+  const [step, setStep] = useState<BridgeStep>("idle");
+  const [statusMsg, setStatusMsg] = useState("");
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const [walletModalSide, setWalletModalSide] = useState<"source" | "destination">("source");
 
-  const { address, isConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
-  const bridge = useBridge();
+  const { data: chainConfig } = useChainConfig();
 
-  const swap = () => {
-    const prevSource = sourceChain;
-    const prevDest = destChain;
-    const prevSender = senderAddress;
-    const prevRecipient = recipientAddress;
-    setSourceChain(prevDest);
-    setDestChain(prevSource);
-    setSenderAddress(prevRecipient);
-    setRecipientAddress(prevSender);
-  };
+  const sourceWallet = useChainWallet(sourceChain);
+  const destWallet = useChainWallet(destChain);
 
-  // Resolve addresses: use wallet if chain is Ethereum and connected, otherwise use manual input
-  const resolvedSender =
-    sourceChain === "ethereum" && isConnected ? address! : senderAddress;
-  const resolvedRecipient =
-    destChain === "ethereum" && isConnected ? address! : recipientAddress;
-
-  // Manual address input only for non-EVM chains (XRPL, Solana).
-  // For Ethereum, the wallet connection handles the address.
-  const needsSenderInput = sourceChain !== "ethereum";
-  const needsRecipientInput = destChain !== "ethereum";
+  const registerTransfer = useRegisterTransfer();
+  const confirmBurn = useConfirmBurn();
 
   // Balance
   const { data: balanceData } = useBalance(
     sourceChain,
-    resolvedSender || ""
+    sourceWallet.address || ""
   );
   const balance = balanceData?.balance ?? "0";
 
-  const handleBridge = async () => {
-    if (!isConnected && (sourceChain === "ethereum" || destChain === "ethereum")) {
-      openConnectModal?.();
-      return;
-    }
+  const swap = () => {
+    const prev = sourceChain;
+    setSourceChain(destChain);
+    setDestChain(prev);
+  };
 
-    if (!resolvedSender || !resolvedRecipient || !amount) return;
+  // Open the wallet modal for the appropriate side
+  const openWalletModal = (side: "source" | "destination") => {
+    setWalletModalSide(side);
+    setWalletModalOpen(true);
+  };
+
+  // Handle wallet selection from the modal – all chains use wallet.connect(walletId)
+  const handleWalletSelect = async (walletId: string) => {
+    setWalletModalOpen(false);
+    const wallet = walletModalSide === "source" ? sourceWallet : destWallet;
 
     try {
-      await bridge.mutateAsync({
+      await wallet.connect(walletId);
+    } catch (e) {
+      setStatusMsg(e instanceof Error ? e.message : "Failed to connect wallet");
+      setStep("error");
+    }
+  };
+
+  const handleBridge = async () => {
+    if (!sourceWallet.address || !destWallet.address || !amount || !chainConfig) return;
+
+    try {
+      setStep("registering");
+      setStatusMsg("Registering transfer...");
+
+      const transfer = await registerTransfer.mutateAsync({
         sourceChain,
         destinationChain: destChain,
-        senderAddress: resolvedSender,
-        recipientAddress: resolvedRecipient,
+        senderAddress: sourceWallet.address,
+        recipientAddress: destWallet.address,
         amount,
       });
+
+      setStep("burning");
+      setStatusMsg("Please sign the burn transaction in your wallet...");
+
+      const tokenAddress = chainConfig[sourceChain].tokenAddress;
+      const burnTxHash = await sourceWallet.signBurn({
+        amount,
+        tokenAddress,
+        destinationChain: destChain,
+        recipientAddress: destWallet.address!,
+      });
+
+      setStep("confirming");
+      setStatusMsg("Verifying burn and minting on destination chain...");
+
+      await confirmBurn.mutateAsync({
+        transferId: transfer.id,
+        burnTxHash,
+      });
+
+      setStep("done");
+      setStatusMsg(`Bridge complete! Transfer ID: ${transfer.id.slice(0, 8)}...`);
       setAmount("");
-      setSenderAddress("");
-      setRecipientAddress("");
-    } catch {
-      // Error handled by mutation state
+    } catch (e) {
+      setStep("error");
+      setStatusMsg(e instanceof Error ? e.message : "Bridge failed");
     }
   };
 
   const sameChain = sourceChain === destChain;
   const insufficientBalance =
     !!amount && parseFloat(amount) > 0 && parseFloat(amount) > parseFloat(balance);
+  const isProcessing = step === "registering" || step === "burning" || step === "confirming";
 
-  const buttonLabel = () => {
+  // Single bottom button logic
+  const handleMainButton = () => {
+    if (!sourceWallet.connected) {
+      openWalletModal("source");
+    } else if (!destWallet.connected) {
+      openWalletModal("destination");
+    } else {
+      handleBridge();
+    }
+  };
+
+  const mainButtonLabel = () => {
     if (sameChain) return "Cannot bridge to the same chain";
-    if (bridge.isPending) return "Bridging...";
-    if (
-      !isConnected &&
-      (sourceChain === "ethereum" || destChain === "ethereum")
-    )
-      return "Connect wallet and bridge";
+    if (isProcessing) {
+      if (step === "registering") return "Registering...";
+      if (step === "burning") return "Sign burn in wallet...";
+      if (step === "confirming") return "Verifying & minting...";
+    }
+    if (!sourceWallet.connected) return "Connect source wallet";
+    if (!destWallet.connected) return "Connect destination wallet";
     if (!amount || parseFloat(amount) <= 0) return "Enter an amount";
     if (insufficientBalance) return "Insufficient balance";
-    if (needsSenderInput && !senderAddress) return "Enter sender address";
-    if (needsRecipientInput && !recipientAddress)
-      return "Enter recipient address";
     return "Bridge tEURCV";
   };
 
-  const canBridge =
+  const mainButtonEnabled =
     !sameChain &&
-    !insufficientBalance &&
-    !bridge.isPending &&
-    !!amount &&
-    parseFloat(amount) > 0 &&
-    !!resolvedSender &&
-    !!resolvedRecipient;
+    !isProcessing &&
+    // Allow click if wallets not connected (opens modal)
+    (!sourceWallet.connected ||
+      !destWallet.connected ||
+      (!!amount && parseFloat(amount) > 0 && !insufficientBalance));
+
+  const modalChain = walletModalSide === "source" ? sourceChain : destChain;
 
   return (
     <div className="w-full max-w-lg mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold text-white">Bridge</h1>
-          <HelpCircle size={16} className="text-zinc-500" />
-        </div>
-        <button className="p-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-700 transition-colors cursor-pointer">
-          <Zap size={16} className="text-zinc-400" />
-        </button>
+      <div className="flex items-center gap-2 mb-6">
+        <h1 className="text-xl font-semibold text-white">Bridge</h1>
+        <HelpCircle size={16} className="text-zinc-500" />
       </div>
 
       {/* Card */}
       <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-5">
-        {/* Transfer From */}
+        {/* Source (From) */}
         <div className="mb-1">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-zinc-500 uppercase tracking-wider">
-              Transfer from
+              From
             </span>
-            <span className="text-xs text-zinc-500">
-              Balance:{" "}
-              <span className="text-white font-medium">{balance}</span>
-            </span>
-          </div>
-          <div className="mb-3">
-            <ChainSelector
-              value={sourceChain}
-              onChange={(chain) => {
-                setSourceChain(chain);
-              }}
-            />
+            <div className="flex items-center gap-2">
+              {sourceWallet.connected && (
+                <span className="text-xs text-zinc-500">
+                  {parseFloat(balance).toFixed(2)} tEURCV
+                </span>
+              )}
+              <WalletBadge
+                address={sourceWallet.address}
+                connected={sourceWallet.connected}
+                onConnect={() => openWalletModal("source")}
+                onDisconnect={() => sourceWallet.disconnect()}
+              />
+            </div>
           </div>
 
-          {/* Sender address for non-EVM source */}
-          {needsSenderInput && (
-            <div className="mb-3">
-              <input
-                type="text"
-                placeholder={`Your ${sourceChain === "solana" ? "Solana" : sourceChain === "stellar" ? "Stellar" : "XRPL"} address`}
-                value={senderAddress}
-                onChange={(e) => setSenderAddress(e.target.value)}
-                className="w-full bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none focus:border-white/20 transition-colors"
+          <div className="mb-3">
+            <ChainSelector value={sourceChain} onChange={setSourceChain} />
+          </div>
+
+          {sourceWallet.connected && (
+            <div className="bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3">
+              <AmountInput
+                value={amount}
+                onChange={setAmount}
+                balance={balance}
               />
             </div>
           )}
-
-          <div className="bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3">
-            <AmountInput
-              value={amount}
-              onChange={setAmount}
-              balance={balance}
-            />
-          </div>
         </div>
 
         {/* Swap Button */}
@@ -167,71 +203,78 @@ export function BridgePanel() {
           </button>
         </div>
 
-        {/* Transfer To */}
+        {/* Destination (To) */}
         <div>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-zinc-500 uppercase tracking-wider">
-              Transfer to
+              To
             </span>
+            <WalletBadge
+              address={destWallet.address}
+              connected={destWallet.connected}
+              onConnect={() => openWalletModal("destination")}
+              onDisconnect={() => destWallet.disconnect()}
+            />
           </div>
-          <ChainSelector
-            value={destChain}
-            onChange={(chain) => {
-              setDestChain(chain);
-            }}
-          />
 
-          {/* Recipient address for non-EVM destination */}
-          {needsRecipientInput && (
-            <div className="mt-3">
-              <input
-                type="text"
-                placeholder={`Recipient ${destChain === "solana" ? "Solana" : destChain === "stellar" ? "Stellar" : "XRPL"} address`}
-                value={recipientAddress}
-                onChange={(e) => setRecipientAddress(e.target.value)}
-                className="w-full bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none focus:border-white/20 transition-colors"
-              />
+          <ChainSelector value={destChain} onChange={setDestChain} />
+
+          {destWallet.connected && amount && parseFloat(amount) > 0 && (
+            <div className="mt-3 flex items-center justify-between text-xs text-zinc-500 px-1">
+              <span>You will receive</span>
+              <span className="text-white font-medium">~{amount} tEURCV</span>
             </div>
           )}
-
         </div>
 
-        {/* Bridge Button */}
+        {/* Single main button */}
         <button
-          onClick={handleBridge}
-          disabled={!canBridge && !(
-            !isConnected &&
-            (sourceChain === "ethereum" || destChain === "ethereum")
-          )}
-          className={`w-full mt-5 py-4 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-            canBridge ||
-            (!isConnected &&
-              (sourceChain === "ethereum" || destChain === "ethereum"))
-              ? "bg-white text-black hover:bg-zinc-200"
+          onClick={handleMainButton}
+          disabled={!mainButtonEnabled}
+          className={`w-full mt-5 py-4 rounded-xl text-sm font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            mainButtonEnabled
+              ? !sourceWallet.connected || !destWallet.connected
+                ? "bg-zinc-700 text-zinc-200 hover:bg-zinc-600"
+                : "bg-white text-black hover:bg-zinc-200"
               : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
           }`}
         >
-          {buttonLabel()}
+          {isProcessing && <Loader2 size={16} className="animate-spin" />}
+          {mainButtonLabel()}
         </button>
 
         {/* Status messages */}
-        {bridge.isSuccess && (
+        {step === "done" && (
           <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-            <p className="text-xs text-emerald-400">
-              Transfer initiated! ID: {bridge.data.id.slice(0, 8)}...
-            </p>
+            <p className="text-xs text-emerald-400">{statusMsg}</p>
           </div>
         )}
-        {bridge.isError && (
+        {step === "error" && (
           <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-            <p className="text-xs text-red-400">
-              {bridge.error instanceof Error
-                ? bridge.error.message
-                : "Bridge failed"}
-            </p>
+            <p className="text-xs text-red-400">{statusMsg}</p>
+            <button
+              onClick={() => setStep("idle")}
+              className="text-xs text-red-300 underline mt-1 cursor-pointer"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+        {isProcessing && (
+          <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+            <p className="text-xs text-blue-400">{statusMsg}</p>
           </div>
         )}
       </div>
+
+      {/* Wallet selection modal */}
+      <WalletModal
+        open={walletModalOpen}
+        onClose={() => setWalletModalOpen(false)}
+        chain={modalChain}
+        side={walletModalSide}
+        onSelect={handleWalletSelect}
+      />
     </div>
   );
 }

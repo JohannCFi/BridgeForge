@@ -61,11 +61,14 @@ export interface Attestation {
 export interface ChainAdapter {
   chain: Chain;
 
-  /** Burn tokens on this chain. Returns the burn tx hash. */
-  burn(senderAddress: string, amount: string): Promise<string>;
-
   /** Mint tokens on this chain. Returns the mint tx hash. */
   mint(recipientAddress: string, amount: string): Promise<string>;
+
+  /**
+   * Verify that a burn transaction exists and is valid.
+   * Returns the parsed burn details if valid, throws if not.
+   */
+  verifyBurn(txHash: string): Promise<BurnVerification>;
 
   /** Listen for burn events. Calls the handler when a burn is detected. */
   listenForBurns(handler: (event: BurnEvent) => void): void;
@@ -77,12 +80,26 @@ export interface ChainAdapter {
   isValidAddress(address: string): boolean;
 }
 
+/** Result of verifying a burn transaction on-chain */
+export interface BurnVerification {
+  txHash: string;
+  sender: string;
+  amount: string;
+  confirmed: boolean;
+  /** Only available for Ethereum BridgeBurn events */
+  destinationChain?: string;
+  /** Only available for Ethereum BridgeBurn events */
+  recipientAddress?: string;
+}
+
 /** Event emitted when tokens are burned on a chain */
 export interface BurnEvent {
   chain: Chain;
   txHash: string;
   sender: string;
   amount: string;
+  destinationChain?: string;
+  recipientAddress?: string;
   timestamp: number;
 }
 

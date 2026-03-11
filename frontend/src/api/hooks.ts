@@ -19,10 +19,27 @@ export function useTransfers() {
   });
 }
 
-export function useBridge() {
+export function useChainConfig() {
+  return useQuery({
+    queryKey: ["chainConfig"],
+    queryFn: api.getConfig,
+    staleTime: Infinity,
+  });
+}
+
+/** Register transfer intent (step 1) */
+export function useRegisterTransfer() {
+  return useMutation({
+    mutationFn: (req: TransferRequest) => api.registerTransfer(req),
+  });
+}
+
+/** Confirm burn and trigger mint (step 2) */
+export function useConfirmBurn() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: TransferRequest) => api.initiateTransfer(req),
+    mutationFn: (params: { transferId: string; burnTxHash: string }) =>
+      api.confirmBurn(params.transferId, params.burnTxHash),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transfers"] });
       qc.invalidateQueries({ queryKey: ["balance"] });

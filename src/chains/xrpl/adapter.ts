@@ -8,7 +8,7 @@
 // ============================================================
 
 import xrpl from "xrpl";
-import { ChainAdapter, BurnEvent } from "../../types/index.js";
+import { ChainAdapter, BurnEvent, BurnVerification } from "../../types/index.js";
 import { chainConfigs, operatorKeys } from "../../config/index.js";
 
 // XRPL: currency codes > 3 chars must be 40-char hex (ASCII of "tEURCV" padded with zeros)
@@ -19,7 +19,6 @@ export class XrplAdapter implements ChainAdapter {
   private client: xrpl.Client;
   private issuerAddress: string;
   private issuerWallet: xrpl.Wallet | null = null;
-  private connected = false;
 
   constructor() {
     this.client = new xrpl.Client(chainConfigs.xrpl.rpcUrl);
@@ -34,57 +33,13 @@ export class XrplAdapter implements ChainAdapter {
 
   private async ensureConnected(): Promise<void> {
     if (!this.client.isConnected()) {
-      this.connected = false;
       await this.client.connect();
-      this.connected = true;
 
       const seed = operatorKeys.xrpl;
       if (seed) {
         this.issuerWallet = xrpl.Wallet.fromSeed(seed);
       }
     }
-  }
-
-  async burn(senderAddress: string, amount: string): Promise<string> {
-    await this.ensureConnected();
-    if (!this.issuerWallet) throw new Error("XRPL wallet not configured");
-
-    // On XRPL, burn = send tokens BACK to the issuer.
-    // The sender must sign their own tx. For the POC, we derive a wallet
-    // from the XRPL_SENDER_KEY env var, or fall back to the issuer wallet
-    // if the sender IS the issuer.
-    let senderWallet: xrpl.Wallet;
-    if (senderAddress === this.issuerWallet.classicAddress) {
-      senderWallet = this.issuerWallet;
-    } else {
-      const senderKey = process.env.XRPL_SENDER_KEY;
-      if (senderKey) {
-        senderWallet = xrpl.Wallet.fromSeed(senderKey);
-      } else {
-        throw new Error(`[XRPL] No private key available for sender ${senderAddress}. Set XRPL_SENDER_KEY in .env`);
-      }
-    }
-
-    console.log(`[XRPL] Burn: sender=${senderAddress}, signer=${senderWallet.classicAddress}, amount=${amount}`);
-
-    const payment: xrpl.Payment = {
-      TransactionType: "Payment",
-      Account: senderWallet.classicAddress,
-      Destination: this.issuerAddress,
-      Amount: {
-        currency: CURRENCY_CODE,
-        issuer: this.issuerAddress,
-        value: amount,
-      },
-    };
-
-    const prepared = await this.client.autofill(payment);
-    const signed = senderWallet.sign(prepared);
-    const result = await this.client.submitAndWait(signed.tx_blob);
-
-    const txHash = result.result.hash;
-    console.log(`[XRPL] Burn tx confirmed: ${txHash}`);
-    return txHash;
   }
 
   async mint(recipientAddress: string, amount: string): Promise<string> {
@@ -110,6 +65,44 @@ export class XrplAdapter implements ChainAdapter {
     const txHash = result.result.hash;
     console.log(`[XRPL] Mint tx confirmed: ${txHash}`);
     return txHash;
+  }
+
+  async verifyBurn(txHash: string): Promise<BurnVerification> {
+    await this.ensureConnected();
+
+    try {
+      const response = await this.client.request({
+        command: "tx",
+        transaction: txHash,
+      });
+
+      const txJson = response.result.tx_json;
+
+      // Check it's a Payment to the issuer with the right currency
+      if (
+        txJson.TransactionType === "Payment" &&
+        txJson.Destination === this.issuerAddress &&
+        typeof txJson.Amount === "object" &&
+        txJson.Amount !== null
+      ) {
+        const amount = txJson.Amount as { currency: string; value: string };
+        if (amount.currency === CURRENCY_CODE) {
+          const meta = response.result.meta as { TransactionResult?: string } | undefined;
+          const confirmed = meta?.TransactionResult === "tesSUCCESS";
+          return {
+            txHash,
+            sender: txJson.Account,
+            amount: amount.value,
+            confirmed,
+          };
+        }
+      }
+
+      return { txHash, sender: "", amount: "0", confirmed: false };
+    } catch (error) {
+      console.error("[XRPL] verifyBurn error:", error);
+      return { txHash, sender: "", amount: "0", confirmed: false };
+    }
   }
 
   listenForBurns(handler: (event: BurnEvent) => void): void {

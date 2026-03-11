@@ -4,7 +4,7 @@
 // ============================================================
 
 import { ethers } from "ethers";
-import { ChainAdapter, BurnEvent } from "../../types";
+import { ChainAdapter, BurnEvent, BurnVerification } from "../../types";
 import { chainConfigs, operatorKeys } from "../../config";
 
 // Minimal ABI for our testEURCV ERC-20 with burn & mint
@@ -48,17 +48,6 @@ export class EthereumAdapter implements ChainAdapter {
     return this.tokenContract;
   }
 
-  async burn(senderAddress: string, amount: string): Promise<string> {
-    const contract = this.ensureReady();
-    const decimals = await contract.decimals();
-    const parsedAmount = ethers.parseUnits(amount, decimals);
-
-    const tx = await contract.burn(parsedAmount);
-    const receipt = await tx.wait();
-    console.log(`[Ethereum] Burn tx confirmed: ${receipt.hash}`);
-    return receipt.hash;
-  }
-
   async mint(recipientAddress: string, amount: string): Promise<string> {
     const contract = this.ensureReady();
     const decimals = await contract.decimals();
@@ -70,21 +59,80 @@ export class EthereumAdapter implements ChainAdapter {
     return receipt.hash;
   }
 
+  async verifyBurn(txHash: string): Promise<BurnVerification> {
+    this.ensureReady();
+    const receipt = await this.provider.getTransactionReceipt(txHash);
+    if (!receipt) {
+      return { txHash, sender: "", amount: "0", confirmed: false };
+    }
+
+    const iface = new ethers.Interface(TEST_EURCV_ABI);
+
+    // Try to find a BridgeBurn event first (has destination info)
+    for (const log of receipt.logs) {
+      try {
+        const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+        if (parsed && parsed.name === "BridgeBurn") {
+          const decimals = 6; // testEURCV uses 6 decimals
+          return {
+            txHash,
+            sender: parsed.args[0], // sender
+            amount: ethers.formatUnits(parsed.args[1], decimals), // amount
+            confirmed: receipt.status === 1,
+            destinationChain: parsed.args[2], // destinationChain
+            recipientAddress: parsed.args[3], // recipientAddress
+          };
+        }
+      } catch {
+        // Not a BridgeBurn log, continue
+      }
+    }
+
+    // Fallback: look for Transfer to 0x0 (simple burn)
+    for (const log of receipt.logs) {
+      try {
+        const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+        if (
+          parsed &&
+          parsed.name === "Transfer" &&
+          parsed.args[1] === ethers.ZeroAddress
+        ) {
+          const decimals = 6;
+          return {
+            txHash,
+            sender: parsed.args[0],
+            amount: ethers.formatUnits(parsed.args[2], decimals),
+            confirmed: receipt.status === 1,
+          };
+        }
+      } catch {
+        // Not a Transfer log, continue
+      }
+    }
+
+    return { txHash, sender: "", amount: "0", confirmed: false };
+  }
+
   listenForBurns(handler: (event: BurnEvent) => void): void {
     if (!this.tokenContract) {
       console.warn("[Ethereum] Adapter not configured, skipping burn listener");
       return;
     }
 
-    this.tokenContract.on("BridgeBurn", (sender: string, amount: bigint, _destChain: string, _recipient: string, event: ethers.EventLog) => {
-      handler({
-        chain: "ethereum",
-        txHash: event.transactionHash,
-        sender,
-        amount: ethers.formatUnits(amount, 6),
-        timestamp: Date.now(),
-      });
-    });
+    this.tokenContract.on(
+      "BridgeBurn",
+      (sender: string, amount: bigint, destChain: string, recipient: string, event: ethers.EventLog) => {
+        handler({
+          chain: "ethereum",
+          txHash: event.transactionHash,
+          sender,
+          amount: ethers.formatUnits(amount, 6),
+          destinationChain: destChain,
+          recipientAddress: recipient,
+          timestamp: Date.now(),
+        });
+      }
+    );
 
     console.log("[Ethereum] Listening for BridgeBurn events...");
   }

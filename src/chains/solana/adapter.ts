@@ -20,7 +20,7 @@ import {
   getAssociatedTokenAddress,
   getAccount,
 } from "@solana/spl-token";
-import { ChainAdapter, BurnEvent } from "../../types/index.js";
+import { ChainAdapter, BurnEvent, BurnVerification } from "../../types/index.js";
 import { chainConfigs, operatorKeys } from "../../config/index.js";
 
 export class SolanaAdapter implements ChainAdapter {
@@ -44,29 +44,6 @@ export class SolanaAdapter implements ChainAdapter {
     }
 
     console.log("[Solana] Adapter initialized");
-  }
-
-  async burn(senderAddress: string, amount: string): Promise<string> {
-    if (!this.operatorKeypair || !this.mintAddress) {
-      throw new Error("[Solana] Wallet or mint not configured");
-    }
-
-    const owner = new PublicKey(senderAddress);
-    const ata = await getAssociatedTokenAddress(this.mintAddress, owner);
-
-    const parsedAmount = Math.round(parseFloat(amount) * 10 ** 6);
-
-    const txSig = await burn(
-      this.connection,
-      this.operatorKeypair, // payer
-      ata, // token account to burn from
-      this.mintAddress, // token mint
-      this.operatorKeypair, // owner of the token account (POC: operator)
-      parsedAmount
-    );
-
-    console.log(`[Solana] Burn tx confirmed: ${txSig}`);
-    return txSig;
   }
 
   async mint(recipientAddress: string, amount: string): Promise<string> {
@@ -97,6 +74,64 @@ export class SolanaAdapter implements ChainAdapter {
 
     console.log(`[Solana] Mint tx confirmed: ${txSig}`);
     return txSig;
+  }
+
+  async verifyBurn(txHash: string): Promise<BurnVerification> {
+    const tx = await this.connection.getParsedTransaction(txHash, {
+      maxSupportedTransactionVersion: 0,
+    });
+
+    if (!tx || !tx.meta) {
+      return { txHash, sender: "", amount: "0", confirmed: false };
+    }
+
+    // Check if transaction succeeded
+    if (tx.meta.err) {
+      return { txHash, sender: "", amount: "0", confirmed: false };
+    }
+
+    // Look for SPL Token burn instruction in inner instructions or main instructions
+    for (const ix of tx.transaction.message.instructions) {
+      const parsed = ix as { program?: string; parsed?: { type?: string; info?: { amount?: string; authority?: string } } };
+      if (
+        parsed.program === "spl-token" &&
+        parsed.parsed?.type === "burn" &&
+        parsed.parsed.info
+      ) {
+        const amount = (Number(parsed.parsed.info.amount) / 10 ** 6).toString();
+        return {
+          txHash,
+          sender: parsed.parsed.info.authority ?? "",
+          amount,
+          confirmed: true,
+        };
+      }
+    }
+
+    // Fallback: check inner instructions
+    if (tx.meta.innerInstructions) {
+      for (const inner of tx.meta.innerInstructions) {
+        for (const ix of inner.instructions) {
+          const parsed = ix as { program?: string; parsed?: { type?: string; info?: { amount?: string; authority?: string } } };
+          if (
+            parsed.program === "spl-token" &&
+            parsed.parsed?.type === "burn" &&
+            parsed.parsed.info
+          ) {
+            const amount = (Number(parsed.parsed.info.amount) / 10 ** 6).toString();
+            return {
+              txHash,
+              sender: parsed.parsed.info.authority ?? "",
+              amount,
+              confirmed: true,
+            };
+          }
+        }
+      }
+    }
+
+    // If no burn instruction found but tx confirmed, return unconfirmed
+    return { txHash, sender: "", amount: "0", confirmed: false };
   }
 
   listenForBurns(handler: (event: BurnEvent) => void): void {

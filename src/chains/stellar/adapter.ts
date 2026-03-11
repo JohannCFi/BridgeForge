@@ -8,7 +8,7 @@
 // ============================================================
 
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { ChainAdapter, BurnEvent } from "../../types/index.js";
+import { ChainAdapter, BurnEvent, BurnVerification } from "../../types/index.js";
 import { chainConfigs, operatorKeys } from "../../config/index.js";
 
 const ASSET_CODE = "tEURCV";
@@ -37,53 +37,11 @@ export class StellarAdapter implements ChainAdapter {
     }
   }
 
-  async burn(senderAddress: string, amount: string): Promise<string> {
-    if (!this.issuerKeypair || !this.asset) {
-      throw new Error("[Stellar] Wallet not configured");
-    }
-
-    // For POC: the operator (issuer) sends tokens back to itself, effectively burning them.
-    // In the burn model, the sender sends tokens to the issuer.
-    // Since we hold the sender's key in env (POC), we use it to sign.
-    const senderSecret = process.env.STELLAR_SENDER_KEY;
-    let senderKeypair: StellarSdk.Keypair;
-
-    if (senderAddress === this.issuerKeypair.publicKey()) {
-      senderKeypair = this.issuerKeypair;
-    } else if (senderSecret) {
-      senderKeypair = StellarSdk.Keypair.fromSecret(senderSecret);
-    } else {
-      throw new Error(`[Stellar] No private key for sender ${senderAddress}. Set STELLAR_SENDER_KEY in .env`);
-    }
-
-    const account = await this.server.loadAccount(senderKeypair.publicKey());
-    const transaction = new StellarSdk.TransactionBuilder(account, {
-      fee: StellarSdk.BASE_FEE,
-      networkPassphrase: StellarSdk.Networks.TESTNET,
-    })
-      .addOperation(
-        StellarSdk.Operation.payment({
-          destination: this.issuerPublicKey,
-          asset: this.asset,
-          amount: amount,
-        })
-      )
-      .setTimeout(30)
-      .build();
-
-    transaction.sign(senderKeypair);
-    const result = await this.server.submitTransaction(transaction);
-    const txHash = result.hash;
-    console.log(`[Stellar] Burn tx confirmed: ${txHash}`);
-    return txHash;
-  }
-
   async mint(recipientAddress: string, amount: string): Promise<string> {
     if (!this.issuerKeypair || !this.asset) {
       throw new Error("[Stellar] Wallet not configured");
     }
 
-    // Mint = issuer sends tokens to recipient (created from nothing, since issuer is the source)
     const account = await this.server.loadAccount(this.issuerKeypair.publicKey());
     const transaction = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
@@ -106,13 +64,46 @@ export class StellarAdapter implements ChainAdapter {
     return txHash;
   }
 
+  async verifyBurn(txHash: string): Promise<BurnVerification> {
+    try {
+      const tx = await this.server.transactions().transaction(txHash).call();
+
+      // Get operations for this transaction
+      const opsResponse = await this.server
+        .operations()
+        .forTransaction(txHash)
+        .call();
+
+      for (const op of opsResponse.records) {
+        const p = op as unknown as Record<string, unknown>;
+        if (
+          p.type === "payment" &&
+          p.asset_code === ASSET_CODE &&
+          p.asset_issuer === this.issuerPublicKey &&
+          p.to === this.issuerPublicKey
+        ) {
+          return {
+            txHash,
+            sender: p.from as string,
+            amount: p.amount as string,
+            confirmed: tx.successful,
+          };
+        }
+      }
+
+      return { txHash, sender: "", amount: "0", confirmed: false };
+    } catch (error) {
+      console.error("[Stellar] verifyBurn error:", error);
+      return { txHash, sender: "", amount: "0", confirmed: false };
+    }
+  }
+
   listenForBurns(handler: (event: BurnEvent) => void): void {
     if (!this.asset) {
       console.warn("[Stellar] Asset not configured, skipping burn listener");
       return;
     }
 
-    // Stream payments to the issuer account (burns)
     this.server
       .payments()
       .forAccount(this.issuerPublicKey)

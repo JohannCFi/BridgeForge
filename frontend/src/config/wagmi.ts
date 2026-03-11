@@ -3,6 +3,6 @@ import { sepolia } from "wagmi/chains";
 
 export const wagmiConfig = getDefaultConfig({
   appName: "BridgeForge",
-  projectId: "bridgeforge-demo", // WalletConnect project ID (placeholder for POC)
+  projectId: "430458bbb0ea2f0289cf29d9f2a20838",
   chains: [sepolia],
 });
