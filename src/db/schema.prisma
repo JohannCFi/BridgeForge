@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TransferStatus {
+  pending
+  rejected
+  ready
+  expired
+  burn_confirmed
+  attested
+  minting
+  completed
+  mint_failed
+  refunding
+  refunded
+  refund_failed
+}
+
+model Transfer {
+  id              String         @id @default(uuid()) @db.Uuid
+  status          TransferStatus @default(pending)
+
+  sourceChain     String         @db.VarChar(10) @map("source_chain")
+  sourceAddress   String         @db.VarChar(100) @map("source_address")
+  burnTxHash      String?        @db.VarChar(100) @map("burn_tx_hash")
+  burnConfirmedAt DateTime?      @map("burn_confirmed_at") @db.Timestamptz
+
+  destChain       String         @db.VarChar(10) @map("dest_chain")
+  destAddress     String         @db.VarChar(100) @map("dest_address")
+  mintTxHash      String?        @db.VarChar(100) @map("mint_tx_hash")
+  mintConfirmedAt DateTime?      @map("mint_confirmed_at") @db.Timestamptz
+
+  amount          Decimal        @db.Decimal(20, 6)
+
+  attestation     Bytes?
+  messageHash     String?        @db.VarChar(66) @map("message_hash")
+
+  refundTxHash    String?        @db.VarChar(100) @map("refund_tx_hash")
+  refundAt        DateTime?      @map("refund_at") @db.Timestamptz
+
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+  retryCount      Int            @default(0) @map("retry_count")
+  errorLog        String?        @map("error_log")
+
+  nonce           UsedNonce?
+
+  @@index([status])
+  @@index([sourceAddress, sourceChain], name: "idx_transfers_source")
+  @@index([destAddress, destChain], name: "idx_transfers_dest")
+  @@map("transfers")
+}
+
+model UsedNonce {
+  transferId String   @id @db.Uuid @map("transfer_id")
+  chain      String   @db.VarChar(10)
+  usedAt     DateTime @default(now()) @map("used_at") @db.Timestamptz
+
+  transfer   Transfer @relation(fields: [transferId], references: [id])
+
+  @@map("used_nonces")
+}
+
+model ChainStatus {
+  chain         String   @id @db.VarChar(10)
+  isHealthy     Boolean  @default(true) @map("is_healthy")
+  lastBlock     BigInt?  @map("last_block")
+  lastCheckedAt DateTime? @map("last_checked_at") @db.Timestamptz
+  errorMessage  String?  @map("error_message")
+
+  @@map("chain_status")
+}
