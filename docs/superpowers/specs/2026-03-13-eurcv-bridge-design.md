@@ -16,6 +16,10 @@ Le protocole permet à tout détenteur d'EURCV de transférer ses tokens d'une c
 | Vérification XRPL/Stellar | Off-chain (backend) | Pas de smart contracts sur ces chaînes. Trust model déjà centralisé (trustlines) |
 | Base de données | PostgreSQL | Transactions ACID, fiabilité critique pour un bridge financier |
 | Protection des fonds | Pre-check + retry + refund automatique | L'utilisateur ne peut jamais perdre ses fonds |
+| Précision décimale | 6 décimales sur toutes les chaînes | Standard EURCV. Les montants sont stockés en plus petite unité (micro-EURCV) |
+| Montant minimum | 1 EURCV (configurable) | Protection contre les attaques spam (chaque transfer coûte du gas à Forge) |
+
+> **Note** : Le contrat actuel `TestEURCV.sol` est un POC simplifié. La spec ci-dessous décrit l'architecture cible.
 
 ## Architecture globale
 
@@ -81,7 +85,12 @@ Le protocole permet à tout détenteur d'EURCV de transférer ses tokens d'une c
 ### Chaînes non-programmables (XRPL/Stellar) — source
 
 1. User enregistre l'intent via `POST /transfer` (chaîne source, dest, montant, recipient)
-2. Backend fait un pre-check (chaîne dest up, balance, etc.) et répond `ready_to_burn`
+2. Backend fait un pre-check et répond `ready_to_burn` :
+   - Chaîne source et destination up
+   - User a le solde suffisant
+   - Montant >= `minAmount` et <= `maxAmount`
+   - Si destination XRPL/Stellar : trustline active du destinataire vérifiée via `account_lines` (XRPL) ou Horizon API (Stellar)
+   - Si destination ETH/Solana : contrat bridge non pausé
 3. User signe un Payment vers l'adresse issuer Forge dans son wallet (Crossmark/GemWallet/Freighter)
 4. Le champ Memo de la transaction contient le `transferId`
 5. User confirme le burn via `POST /transfer/:id/confirm-burn` avec le txHash
@@ -141,15 +150,18 @@ struct BridgeMessage {
 }
 ```
 
-L'attestation est la signature ECDSA (ETH) ou Ed25519 (Solana) de `keccak256(abi.encode(message))`.
+Schéma de signature par chaîne :
+- **Ethereum** : ECDSA (secp256k1) sur `keccak256(abi.encode(message))`
+- **Solana** : Ed25519 sur `sha256(borsh.serialize(message))` — compatible avec le programme natif `ed25519_program`
 
 ### Contrat EURCVBridge
 
-- `depositForBurn(amount, destDomain, recipient)` — burn les tokens, émet BurnEvent
-- `receiveMessage(message, attestation)` — vérifie signature + nonce, mint les tokens
-- `setAttester(address)` — clé publique Forge (admin only)
+- `depositForBurn(amount, destDomain, recipient)` — vérifie `amount >= minAmount && amount <= maxAmount`, burn les tokens, émet BurnEvent
+- `receiveMessage(message, attestation)` — vérifie signature + nonce, mint les tokens. Permissionless.
+- `emergencyMint(to, amount)` — mint de refund, appelable uniquement par `ADMIN_ROLE` quand le bridge est pausé. Utilisé pour rembourser un burn dont le mint a échoué sur la destination.
+- `setAttester(address)` — clé publique Forge (admin only, avec timelock de 24h)
 - `pause() / unpause()` — circuit breaker (admin only)
-- `setMaxAmount(uint256)` — plafond par transaction (admin only)
+- `setMinAmount(uint256)` / `setMaxAmount(uint256)` — plafonds par transaction (admin only)
 
 ### Contrat EURCVToken
 
@@ -215,7 +227,7 @@ Implémentations : `EthereumAdapter` (ethers.js), `SolanaAdapter` (@solana/web3.
 | POST | `/transfer` | Créer un intent de transfer |
 | POST | `/transfer/:id/confirm-burn` | Confirmer la tx de burn |
 | GET | `/transfer/:id` | Statut d'un transfer |
-| GET | `/transfers?wallet=...` | Historique d'un wallet |
+| GET | `/transfers?address=...&chain=...` | Historique d'un wallet (filtrable par chaîne) |
 | GET | `/health` | Healthcheck + statut des chaînes |
 
 ### Modèle de données
@@ -235,7 +247,7 @@ CREATE TABLE transfers (
     mint_tx_hash      VARCHAR(100),
     mint_confirmed_at TIMESTAMPTZ,
 
-    amount            DECIMAL(38, 18) NOT NULL,
+    amount            DECIMAL(20, 6) NOT NULL,  -- 6 décimales, standard EURCV
 
     attestation       BYTEA,
     message_hash      VARCHAR(66),
@@ -271,12 +283,19 @@ CREATE TABLE chain_status (
 ### Machine à états
 
 ```
+                 ┌──────────┐
+                 │ rejected │  ← pre-check échoué (chaîne down, pas de trustline, etc.)
+                 └──────────┘
+                       ↑
 pending → ready → burn_confirmed → attested → minting → completed
-                                                     ↘ mint_failed → refunding → refunded
+  ↓         ↓                                    ↘ mint_failed → refunding → refunded
+rejected  expired                                                    ↘ refund_failed
 ```
 
 - `pending` : intent créé, pre-check en cours
+- `rejected` : pre-check échoué (chaîne down, pas de trustline, montant invalide)
 - `ready` : pre-check OK, en attente du burn par l'utilisateur
+- `expired` : l'utilisateur n'a pas burn dans le délai imparti (TTL : 30 minutes)
 - `burn_confirmed` : burn vérifié on-chain, attestation en cours
 - `attested` : message signé, mint en queue
 - `minting` : tx mint soumise, en attente de confirmation
@@ -284,6 +303,7 @@ pending → ready → burn_confirmed → attested → minting → completed
 - `mint_failed` : mint échoué après tous les retries
 - `refunding` : refund en cours (re-mint sur source)
 - `refunded` : refund confirmé, utilisateur remboursé
+- `refund_failed` : refund échoué → nécessite intervention manuelle Forge + alerte Sentry
 
 ### MintQueue (Bull)
 
@@ -300,6 +320,17 @@ pending → ready → burn_confirmed → attested → minting → completed
 - CORS restreint au domaine du frontend
 - Idempotence via transferId UUID
 - Audit trail : chaque changement de statut est loggé
+- API versionnée : `/v1/transfer`, `/v1/health`, etc.
+
+### Gestion des clés (Key Management)
+
+| Aspect | Détail |
+|--------|--------|
+| **Clé d'attestation** | ECDSA (secp256k1) pour ETH, Ed25519 pour Solana. Stockée en variable d'environnement (dev) ou HSM (prod) |
+| **Rotation** | `setAttester()` avec timelock de 24h on-chain. Pendant la rotation, les deux clés sont valides pour éviter le downtime |
+| **Compromission** | 1. `pause()` immédiat sur tous les contrats. 2. Rotation de la clé. 3. Audit de toutes les attestations émises. 4. `unpause()` avec la nouvelle clé |
+| **Clés issuer (XRPL/Stellar)** | Regular key pattern sur XRPL (la master key peut révoquer). Signer key sur Stellar. |
+| **Backup** | Clés stockées chiffrées en backup offline (cold storage) |
 
 ## Frontend
 
@@ -342,7 +373,11 @@ Message : "Vous pouvez fermer cette page, vous recevrez vos fonds automatiquemen
 
 ### Polling
 
-Le frontend poll `GET /transfer/:id` toutes les 3 secondes pendant un transfer actif. Le polling s'arrête quand le statut est `completed` ou `refunded`.
+Deux options pour le suivi en temps réel :
+- **Polling** : `GET /transfer/:id` toutes les 3 secondes (simple, suffisant pour le MVP)
+- **WebSocket** (recommandé pour la prod) : le backend push les changements de statut via Socket.io. Réduit la charge serveur et améliore la réactivité.
+
+Le polling s'arrête (ou le socket se déconnecte) quand le statut est `completed`, `refunded` ou `refund_failed`.
 
 ### Cas d'erreur
 
