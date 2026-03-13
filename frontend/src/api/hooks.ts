@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { Chain, TransferRequest } from "../types";
+import type { Chain, CreateTransferRequest } from "../types";
 
 export function useBalance(chain: Chain | null, address: string) {
   return useQuery({
@@ -11,10 +11,10 @@ export function useBalance(chain: Chain | null, address: string) {
   });
 }
 
-export function useTransfers() {
+export function useTransfers(address?: string, chain?: string) {
   return useQuery({
-    queryKey: ["transfers"],
-    queryFn: api.getTransfers,
+    queryKey: ["transfers", address, chain],
+    queryFn: () => api.getTransfers(address, chain),
     refetchInterval: 5_000,
   });
 }
@@ -27,10 +27,37 @@ export function useChainConfig() {
   });
 }
 
+/** Poll chain health statuses */
+export function useChainStatus() {
+  return useQuery({
+    queryKey: ["chainStatus"],
+    queryFn: api.getHealth,
+    refetchInterval: 30_000,
+  });
+}
+
+/** Poll a single transfer status while it's active */
+export function useTransferStatus(transferId: string | null) {
+  return useQuery({
+    queryKey: ["transfer", transferId],
+    queryFn: () => api.getTransfer(transferId!),
+    enabled: !!transferId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (!status) return 3_000;
+      // Stop polling when terminal
+      if (["completed", "refunded", "refund_failed", "expired", "rejected"].includes(status)) {
+        return false;
+      }
+      return 3_000;
+    },
+  });
+}
+
 /** Register transfer intent (step 1) */
 export function useRegisterTransfer() {
   return useMutation({
-    mutationFn: (req: TransferRequest) => api.registerTransfer(req),
+    mutationFn: (req: CreateTransferRequest) => api.registerTransfer(req),
   });
 }
 
