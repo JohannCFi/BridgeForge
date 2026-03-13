@@ -6,52 +6,60 @@
 /** Supported blockchain networks */
 export type Chain = "ethereum" | "solana" | "xrpl" | "stellar";
 
-/** Transfer status lifecycle (mirrors CCTP flow) */
+/** Transfer status lifecycle */
 export type TransferStatus =
-  | "pending"       // Transfer request received
-  | "burning"       // Burn tx submitted on source chain
-  | "burned"        // Burn confirmed on source chain
-  | "attesting"     // Backend creating attestation proof
-  | "attested"      // Attestation ready
-  | "minting"       // Mint tx submitted on destination chain
-  | "completed"     // Mint confirmed – transfer done
-  | "failed";       // Something went wrong
+  | "pending"
+  | "rejected"
+  | "ready"
+  | "expired"
+  | "burn_confirmed"
+  | "attested"
+  | "minting"
+  | "completed"
+  | "mint_failed"
+  | "refunding"
+  | "refunded"
+  | "refund_failed";
 
-/** A cross-chain transfer request */
-export interface TransferRequest {
-  sourceChain: Chain;
-  destinationChain: Chain;
-  senderAddress: string;
-  recipientAddress: string;
-  amount: string;            // String to avoid floating-point issues
-  token: "testEURCV";        // Only one token for now
-}
+/** Domain IDs for cross-chain addressing */
+export const DOMAIN_IDS: Record<Chain, number> = {
+  ethereum: 0,
+  solana: 1,
+  xrpl: 2,
+  stellar: 3,
+};
 
-/** A transfer in progress, tracked by the bridge */
-export interface Transfer extends TransferRequest {
-  id: string;
-  status: TransferStatus;
-  burnTxHash?: string;
-  mintTxHash?: string;
-  attestation?: Attestation;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-/**
- * Attestation – proof that a burn happened on the source chain.
- * In CCTP, Circle signs this. In our bridge, our backend is the attester.
- * In production, Forge would be the attester.
- */
-export interface Attestation {
+/** Bridge message matching on-chain BridgeMessage struct */
+export interface BridgeMessage {
+  version: number;
   transferId: string;
-  sourceChain: Chain;
-  destinationChain: Chain;
+  sourceDomain: number;
+  destDomain: number;
+  sender: string;
+  recipient: string;
   amount: string;
-  recipientAddress: string;
   burnTxHash: string;
-  signature: string;         // Signed by our backend (attester)
-  timestamp: number;
+}
+
+/** Result of verifying a burn transaction on-chain */
+export interface BurnProof {
+  valid: boolean;
+  sender: string;
+  amount: string;
+  txHash: string;
+  transferId?: string; // on-chain transferId from BurnForBridge event (ETH/Solana only)
+}
+
+/** Result of executing a mint */
+export interface MintResult {
+  success: boolean;
+  txHash: string;
+}
+
+/** Result of executing a refund */
+export interface RefundResult {
+  success: boolean;
+  txHash: string;
 }
 
 /**
@@ -60,47 +68,12 @@ export interface Attestation {
  */
 export interface ChainAdapter {
   chain: Chain;
-
-  /** Mint tokens on this chain. Returns the mint tx hash. */
-  mint(recipientAddress: string, amount: string): Promise<string>;
-
-  /**
-   * Verify that a burn transaction exists and is valid.
-   * Returns the parsed burn details if valid, throws if not.
-   */
-  verifyBurn(txHash: string): Promise<BurnVerification>;
-
-  /** Listen for burn events. Calls the handler when a burn is detected. */
-  listenForBurns(handler: (event: BurnEvent) => void): void;
-
-  /** Get the token balance of an address */
+  verifyBurn(txHash: string): Promise<BurnProof>;
+  executeMint(recipientAddress: string, amount: string): Promise<MintResult>;
+  refund(senderAddress: string, amount: string): Promise<RefundResult>;
   getBalance(address: string): Promise<string>;
-
-  /** Check if an address is valid on this chain */
-  isValidAddress(address: string): boolean;
-}
-
-/** Result of verifying a burn transaction on-chain */
-export interface BurnVerification {
-  txHash: string;
-  sender: string;
-  amount: string;
-  confirmed: boolean;
-  /** Only available for Ethereum BridgeBurn events */
-  destinationChain?: string;
-  /** Only available for Ethereum BridgeBurn events */
-  recipientAddress?: string;
-}
-
-/** Event emitted when tokens are burned on a chain */
-export interface BurnEvent {
-  chain: Chain;
-  txHash: string;
-  sender: string;
-  amount: string;
-  destinationChain?: string;
-  recipientAddress?: string;
-  timestamp: number;
+  isHealthy(): Promise<boolean>;
+  hasTrustline?(address: string): Promise<boolean>;
 }
 
 /** API response wrapper */
