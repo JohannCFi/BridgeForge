@@ -4,33 +4,32 @@ import type { Chain } from "../../types";
 import {
   useBalance,
   useChainConfig,
-  useRegisterTransfer,
-  useConfirmBurn,
+  useChainStatus,
 } from "../../api/hooks";
 import { useChainWallet } from "../../hooks/useWallet";
+import { useBridge } from "../../hooks/useBridge";
 import { ChainSelector } from "./ChainSelector";
 import { AmountInput } from "./AmountInput";
 import { WalletModal } from "./WalletModal";
 import { WalletBadge } from "./WalletBadge";
-
-type BridgeStep = "idle" | "registering" | "burning" | "confirming" | "done" | "error";
+import { TransferProgress } from "./TransferProgress";
+import { ChainStatusBadge } from "../common/ChainStatusBadge";
+import { TrustlineWarning } from "../common/TrustlineWarning";
 
 export function BridgePanel() {
   const [sourceChain, setSourceChain] = useState<Chain>("ethereum");
   const [destChain, setDestChain] = useState<Chain>("solana");
   const [amount, setAmount] = useState("");
-  const [step, setStep] = useState<BridgeStep>("idle");
-  const [statusMsg, setStatusMsg] = useState("");
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [walletModalSide, setWalletModalSide] = useState<"source" | "destination">("source");
 
   const { data: chainConfig } = useChainConfig();
+  const { data: chainStatus } = useChainStatus();
 
   const sourceWallet = useChainWallet(sourceChain);
   const destWallet = useChainWallet(destChain);
 
-  const registerTransfer = useRegisterTransfer();
-  const confirmBurn = useConfirmBurn();
+  const { bridge, transferId, step, error, reset } = useBridge();
 
   // Balance
   const { data: balanceData } = useBalance(
@@ -45,74 +44,46 @@ export function BridgePanel() {
     setDestChain(prev);
   };
 
-  // Open the wallet modal for the appropriate side
   const openWalletModal = (side: "source" | "destination") => {
     setWalletModalSide(side);
     setWalletModalOpen(true);
   };
 
-  // Handle wallet selection from the modal – all chains use wallet.connect(walletId)
   const handleWalletSelect = async (walletId: string) => {
     setWalletModalOpen(false);
     const wallet = walletModalSide === "source" ? sourceWallet : destWallet;
-
     try {
       await wallet.connect(walletId);
-    } catch (e) {
-      setStatusMsg(e instanceof Error ? e.message : "Failed to connect wallet");
-      setStep("error");
+    } catch (_e) {
+      // handled by useBridge
     }
   };
 
   const handleBridge = async () => {
     if (!sourceWallet.address || !destWallet.address || !amount || !chainConfig) return;
 
-    try {
-      setStep("registering");
-      setStatusMsg("Registering transfer...");
+    const tokenAddress = chainConfig[sourceChain].tokenAddress;
+    await bridge({
+      sourceChain,
+      destChain,
+      sourceAddress: sourceWallet.address,
+      destAddress: destWallet.address,
+      amount,
+      signBurn: sourceWallet.signBurn,
+      tokenAddress,
+    });
 
-      const transfer = await registerTransfer.mutateAsync({
-        sourceChain,
-        destinationChain: destChain,
-        senderAddress: sourceWallet.address,
-        recipientAddress: destWallet.address,
-        amount,
-      });
-
-      setStep("burning");
-      setStatusMsg("Please sign the burn transaction in your wallet...");
-
-      const tokenAddress = chainConfig[sourceChain].tokenAddress;
-      const burnTxHash = await sourceWallet.signBurn({
-        amount,
-        tokenAddress,
-        destinationChain: destChain,
-        recipientAddress: destWallet.address!,
-      });
-
-      setStep("confirming");
-      setStatusMsg("Verifying burn and minting on destination chain...");
-
-      await confirmBurn.mutateAsync({
-        transferId: transfer.id,
-        burnTxHash,
-      });
-
-      setStep("done");
-      setStatusMsg(`Bridge complete! Transfer ID: ${transfer.id.slice(0, 8)}...`);
-      setAmount("");
-    } catch (e) {
-      setStep("error");
-      setStatusMsg(e instanceof Error ? e.message : "Bridge failed");
-    }
+    if (step === "done") setAmount("");
   };
 
   const sameChain = sourceChain === destChain;
+  const sourceDown = chainStatus?.[sourceChain] === false;
+  const destDown = chainStatus?.[destChain] === false;
+  const chainDown = sourceDown || destDown;
   const insufficientBalance =
     !!amount && parseFloat(amount) > 0 && parseFloat(amount) > parseFloat(balance);
   const isProcessing = step === "registering" || step === "burning" || step === "confirming";
 
-  // Single bottom button logic
   const handleMainButton = () => {
     if (!sourceWallet.connected) {
       openWalletModal("source");
@@ -125,6 +96,7 @@ export function BridgePanel() {
 
   const mainButtonLabel = () => {
     if (sameChain) return "Cannot bridge to the same chain";
+    if (chainDown) return sourceDown ? "Source chain unavailable" : "Destination chain unavailable";
     if (isProcessing) {
       if (step === "registering") return "Registering...";
       if (step === "burning") return "Sign burn in wallet...";
@@ -134,18 +106,16 @@ export function BridgePanel() {
     if (!destWallet.connected) return "Connect destination wallet";
     if (!amount || parseFloat(amount) <= 0) return "Enter an amount";
     if (insufficientBalance) return "Insufficient balance";
-    return "Bridge tEURCV";
+    return "Bridge EURCV";
   };
 
   const mainButtonEnabled =
     !sameChain &&
+    !chainDown &&
     !isProcessing &&
-    // Allow click if wallets not connected (opens modal)
     (!sourceWallet.connected ||
       !destWallet.connected ||
       (!!amount && parseFloat(amount) > 0 && !insufficientBalance));
-
-  const modalChain = walletModalSide === "source" ? sourceChain : destChain;
 
   return (
     <div className="w-full max-w-lg mx-auto">
@@ -160,13 +130,13 @@ export function BridgePanel() {
         {/* Source (From) */}
         <div className="mb-1">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-zinc-500 uppercase tracking-wider">
-              From
+            <span className="text-xs text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+              From <ChainStatusBadge chain={sourceChain} />
             </span>
             <div className="flex items-center gap-2">
               {sourceWallet.connected && (
                 <span className="text-xs text-zinc-500">
-                  {parseFloat(balance).toFixed(2)} tEURCV
+                  {parseFloat(balance).toFixed(2)} EURCV
                 </span>
               )}
               <WalletBadge
@@ -206,8 +176,8 @@ export function BridgePanel() {
         {/* Destination (To) */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-zinc-500 uppercase tracking-wider">
-              To
+            <span className="text-xs text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+              To <ChainStatusBadge chain={destChain} />
             </span>
             <WalletBadge
               address={destWallet.address}
@@ -222,12 +192,19 @@ export function BridgePanel() {
           {destWallet.connected && amount && parseFloat(amount) > 0 && (
             <div className="mt-3 flex items-center justify-between text-xs text-zinc-500 px-1">
               <span>You will receive</span>
-              <span className="text-white font-medium">~{amount} tEURCV</span>
+              <span className="text-white font-medium">~{amount} EURCV</span>
             </div>
           )}
         </div>
 
-        {/* Single main button */}
+        {/* Trustline warning for XRPL/Stellar */}
+        {error && (destChain === "xrpl" || destChain === "stellar") && (
+          <div className="mt-3">
+            <TrustlineWarning chain={destChain} errorMessage={error} />
+          </div>
+        )}
+
+        {/* Main button */}
         <button
           onClick={handleMainButton}
           disabled={!mainButtonEnabled}
@@ -243,26 +220,39 @@ export function BridgePanel() {
           {mainButtonLabel()}
         </button>
 
-        {/* Status messages */}
-        {step === "done" && (
-          <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-            <p className="text-xs text-emerald-400">{statusMsg}</p>
+        {/* Transfer progress stepper (replaces inline status messages) */}
+        {transferId && step !== "idle" && (
+          <div className="mt-4 p-4 bg-black/30 border border-white/[0.06] rounded-xl">
+            <TransferProgress
+              transferId={transferId}
+              sourceChain={sourceChain}
+              destChain={destChain}
+            />
           </div>
         )}
-        {step === "error" && (
+
+        {/* Error without transferId (e.g. rejected before creation) */}
+        {step === "error" && !transferId && error && (
           <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-            <p className="text-xs text-red-400">{statusMsg}</p>
+            <p className="text-xs text-red-400">{error}</p>
             <button
-              onClick={() => setStep("idle")}
+              onClick={reset}
               className="text-xs text-red-300 underline mt-1 cursor-pointer"
             >
               Try again
             </button>
           </div>
         )}
-        {isProcessing && (
-          <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-            <p className="text-xs text-blue-400">{statusMsg}</p>
+
+        {step === "done" && (
+          <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+            <p className="text-xs text-emerald-400">Bridge complete!</p>
+            <button
+              onClick={reset}
+              className="text-xs text-emerald-300 underline mt-1 cursor-pointer"
+            >
+              Start new transfer
+            </button>
           </div>
         )}
       </div>
@@ -271,7 +261,6 @@ export function BridgePanel() {
       <WalletModal
         open={walletModalOpen}
         onClose={() => setWalletModalOpen(false)}
-        chain={modalChain}
         side={walletModalSide}
         onSelect={handleWalletSelect}
       />
