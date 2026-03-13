@@ -1,14 +1,10 @@
 // ============================================================
 // BridgeForge – Stellar Chain Adapter
-// Handles burn/mint of testEURCV on Stellar (Testnet)
-//
-// Stellar uses trust lines, similar to XRPL:
-// - Mint = issuer sends tokens to holder (created from nothing)
-// - Burn = holder sends tokens back to issuer (destroyed)
+// Handles burn/mint of EURCV on Stellar (Testnet)
 // ============================================================
 
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { ChainAdapter, BurnEvent, BurnVerification } from "../../types/index.js";
+import { ChainAdapter, BurnProof, MintResult, RefundResult } from "../../types/index.js";
 import { chainConfigs, operatorKeys } from "../../config/index.js";
 
 const ASSET_CODE = "tEURCV";
@@ -37,38 +33,42 @@ export class StellarAdapter implements ChainAdapter {
     }
   }
 
-  async mint(recipientAddress: string, amount: string): Promise<string> {
-    if (!this.issuerKeypair || !this.asset) {
-      throw new Error("[Stellar] Wallet not configured");
+  async executeMint(recipientAddress: string, amount: string): Promise<MintResult> {
+    try {
+      if (!this.issuerKeypair || !this.asset) {
+        throw new Error("[Stellar] Wallet not configured");
+      }
+
+      const account = await this.server.loadAccount(this.issuerKeypair.publicKey());
+      const transaction = new StellarSdk.TransactionBuilder(account, {
+        fee: StellarSdk.BASE_FEE,
+        networkPassphrase: StellarSdk.Networks.TESTNET,
+      })
+        .addOperation(
+          StellarSdk.Operation.payment({
+            destination: recipientAddress,
+            asset: this.asset,
+            amount: amount,
+          })
+        )
+        .setTimeout(30)
+        .build();
+
+      transaction.sign(this.issuerKeypair);
+      const result = await this.server.submitTransaction(transaction);
+      const txHash = result.hash;
+      console.log(`[Stellar] Mint tx confirmed: ${txHash}`);
+      return { success: true, txHash };
+    } catch (err) {
+      console.error("[Stellar] Mint failed:", err);
+      return { success: false, txHash: "" };
     }
-
-    const account = await this.server.loadAccount(this.issuerKeypair.publicKey());
-    const transaction = new StellarSdk.TransactionBuilder(account, {
-      fee: StellarSdk.BASE_FEE,
-      networkPassphrase: StellarSdk.Networks.TESTNET,
-    })
-      .addOperation(
-        StellarSdk.Operation.payment({
-          destination: recipientAddress,
-          asset: this.asset,
-          amount: amount,
-        })
-      )
-      .setTimeout(30)
-      .build();
-
-    transaction.sign(this.issuerKeypair);
-    const result = await this.server.submitTransaction(transaction);
-    const txHash = result.hash;
-    console.log(`[Stellar] Mint tx confirmed: ${txHash}`);
-    return txHash;
   }
 
-  async verifyBurn(txHash: string): Promise<BurnVerification> {
+  async verifyBurn(txHash: string): Promise<BurnProof> {
     try {
       const tx = await this.server.transactions().transaction(txHash).call();
 
-      // Get operations for this transaction
       const opsResponse = await this.server
         .operations()
         .forTransaction(txHash)
@@ -83,55 +83,23 @@ export class StellarAdapter implements ChainAdapter {
           p.to === this.issuerPublicKey
         ) {
           return {
-            txHash,
+            valid: tx.successful,
             sender: p.from as string,
             amount: p.amount as string,
-            confirmed: tx.successful,
+            txHash,
           };
         }
       }
 
-      return { txHash, sender: "", amount: "0", confirmed: false };
+      return { valid: false, sender: "", amount: "0", txHash };
     } catch (error) {
       console.error("[Stellar] verifyBurn error:", error);
-      return { txHash, sender: "", amount: "0", confirmed: false };
+      return { valid: false, sender: "", amount: "0", txHash };
     }
   }
 
-  listenForBurns(handler: (event: BurnEvent) => void): void {
-    if (!this.asset) {
-      console.warn("[Stellar] Asset not configured, skipping burn listener");
-      return;
-    }
-
-    this.server
-      .payments()
-      .forAccount(this.issuerPublicKey)
-      .cursor("now")
-      .stream({
-        onmessage: (payment) => {
-          const p = payment as unknown as Record<string, unknown>;
-          if (
-            p.type === "payment" &&
-            p.asset_code === ASSET_CODE &&
-            p.to === this.issuerPublicKey &&
-            p.from !== this.issuerPublicKey
-          ) {
-            handler({
-              chain: "stellar",
-              txHash: (p.transaction_hash as string) ?? "",
-              sender: p.from as string,
-              amount: p.amount as string,
-              timestamp: Date.now(),
-            });
-          }
-        },
-        onerror: (error: unknown) => {
-          console.error("[Stellar] Stream error:", error);
-        },
-      });
-
-    console.log("[Stellar] Listening for burn events...");
+  async refund(senderAddress: string, amount: string): Promise<RefundResult> {
+    return this.executeMint(senderAddress, amount);
   }
 
   async getBalance(address: string): Promise<string> {
@@ -149,7 +117,26 @@ export class StellarAdapter implements ChainAdapter {
     }
   }
 
-  isValidAddress(address: string): boolean {
-    return /^G[A-Z2-7]{55}$/.test(address);
+  async isHealthy(): Promise<boolean> {
+    try {
+      await this.server.loadAccount(this.issuerPublicKey);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async hasTrustline(address: string): Promise<boolean> {
+    try {
+      const account = await this.server.loadAccount(address);
+      return account.balances.some(
+        (b) =>
+          b.asset_type !== "native" &&
+          (b as StellarSdk.Horizon.HorizonApi.BalanceLineAsset).asset_code === ASSET_CODE &&
+          (b as StellarSdk.Horizon.HorizonApi.BalanceLineAsset).asset_issuer === this.issuerPublicKey
+      );
+    } catch {
+      return false;
+    }
   }
 }

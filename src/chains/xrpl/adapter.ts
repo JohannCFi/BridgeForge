@@ -1,14 +1,10 @@
 // ============================================================
 // BridgeForge – XRP Ledger Chain Adapter
-// Handles burn/mint of testEURCV on XRPL (Testnet)
-//
-// XRPL uses trust lines, not smart contracts:
-// - Mint = issuer sends tokens to holder (created from nothing)
-// - Burn = holder sends tokens back to issuer (destroyed)
+// Handles burn/mint of EURCV on XRPL (Testnet)
 // ============================================================
 
 import xrpl from "xrpl";
-import { ChainAdapter, BurnEvent, BurnVerification } from "../../types/index.js";
+import { ChainAdapter, BurnProof, MintResult, RefundResult } from "../../types/index.js";
 import { chainConfigs, operatorKeys } from "../../config/index.js";
 
 // XRPL: currency codes > 3 chars must be 40-char hex (ASCII of "tEURCV" padded with zeros)
@@ -42,32 +38,36 @@ export class XrplAdapter implements ChainAdapter {
     }
   }
 
-  async mint(recipientAddress: string, amount: string): Promise<string> {
-    await this.ensureConnected();
-    if (!this.issuerWallet) throw new Error("XRPL wallet not configured");
+  async executeMint(recipientAddress: string, amount: string): Promise<MintResult> {
+    try {
+      await this.ensureConnected();
+      if (!this.issuerWallet) throw new Error("XRPL wallet not configured");
 
-    // On XRPL, mint = issuer sends tokens to recipient (created from nothing)
-    const payment: xrpl.Payment = {
-      TransactionType: "Payment",
-      Account: this.issuerAddress,
-      Destination: recipientAddress,
-      Amount: {
-        currency: CURRENCY_CODE,
-        issuer: this.issuerAddress,
-        value: amount,
-      },
-    };
+      const payment: xrpl.Payment = {
+        TransactionType: "Payment",
+        Account: this.issuerAddress,
+        Destination: recipientAddress,
+        Amount: {
+          currency: CURRENCY_CODE,
+          issuer: this.issuerAddress,
+          value: amount,
+        },
+      };
 
-    const result = await this.client.submitAndWait(payment, {
-      wallet: this.issuerWallet,
-    });
+      const result = await this.client.submitAndWait(payment, {
+        wallet: this.issuerWallet,
+      });
 
-    const txHash = result.result.hash;
-    console.log(`[XRPL] Mint tx confirmed: ${txHash}`);
-    return txHash;
+      const txHash = result.result.hash;
+      console.log(`[XRPL] Mint tx confirmed: ${txHash}`);
+      return { success: true, txHash };
+    } catch (err) {
+      console.error("[XRPL] Mint failed:", err);
+      return { success: false, txHash: "" };
+    }
   }
 
-  async verifyBurn(txHash: string): Promise<BurnVerification> {
+  async verifyBurn(txHash: string): Promise<BurnProof> {
     await this.ensureConnected();
 
     try {
@@ -78,7 +78,6 @@ export class XrplAdapter implements ChainAdapter {
 
       const txJson = response.result.tx_json;
 
-      // Check it's a Payment to the issuer with the right currency
       if (
         txJson.TransactionType === "Payment" &&
         txJson.Destination === this.issuerAddress &&
@@ -90,53 +89,24 @@ export class XrplAdapter implements ChainAdapter {
           const meta = response.result.meta as { TransactionResult?: string } | undefined;
           const confirmed = meta?.TransactionResult === "tesSUCCESS";
           return {
-            txHash,
+            valid: confirmed,
             sender: txJson.Account,
             amount: amount.value,
-            confirmed,
+            txHash,
           };
         }
       }
 
-      return { txHash, sender: "", amount: "0", confirmed: false };
+      return { valid: false, sender: "", amount: "0", txHash };
     } catch (error) {
       console.error("[XRPL] verifyBurn error:", error);
-      return { txHash, sender: "", amount: "0", confirmed: false };
+      return { valid: false, sender: "", amount: "0", txHash };
     }
   }
 
-  listenForBurns(handler: (event: BurnEvent) => void): void {
-    this.ensureConnected().then(() => {
-      this.client.request({
-        command: "subscribe",
-        accounts: [this.issuerAddress],
-      });
-
-      this.client.on("transaction", (tx: Record<string, unknown>) => {
-        const transaction = tx.transaction as Record<string, unknown> | undefined;
-
-        // Filter: only incoming payments with tEURCV
-        if (
-          transaction?.TransactionType === "Payment" &&
-          transaction.Destination === this.issuerAddress &&
-          typeof transaction.Amount === "object" &&
-          transaction.Amount !== null
-        ) {
-          const amount = transaction.Amount as { currency: string; value: string };
-          if (amount.currency === CURRENCY_CODE) {
-            handler({
-              chain: "xrpl",
-              txHash: (transaction.hash as string) ?? "",
-              sender: transaction.Account as string,
-              amount: amount.value,
-              timestamp: Date.now(),
-            });
-          }
-        }
-      });
-
-      console.log("[XRPL] Listening for burn events...");
-    });
+  async refund(senderAddress: string, amount: string): Promise<RefundResult> {
+    // Refund = issuer sends tokens back to original sender
+    return this.executeMint(senderAddress, amount);
   }
 
   async getBalance(address: string): Promise<string> {
@@ -154,7 +124,28 @@ export class XrplAdapter implements ChainAdapter {
     return line?.balance ?? "0";
   }
 
-  isValidAddress(address: string): boolean {
-    return /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(address);
+  async isHealthy(): Promise<boolean> {
+    try {
+      await this.ensureConnected();
+      await this.client.request({ command: "server_info" });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async hasTrustline(address: string): Promise<boolean> {
+    try {
+      await this.ensureConnected();
+      const response = await this.client.request({
+        command: "account_lines",
+        account: address,
+      });
+      return response.result.lines.some(
+        (l) => l.currency === CURRENCY_CODE && l.account === this.issuerAddress
+      );
+    } catch {
+      return false;
+    }
   }
 }

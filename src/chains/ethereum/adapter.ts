@@ -1,22 +1,20 @@
 // ============================================================
 // BridgeForge – Ethereum Chain Adapter
-// Handles burn/mint of testEURCV on Ethereum (Sepolia testnet)
+// Handles burn/mint of EURCV on Ethereum (Sepolia testnet)
 // ============================================================
 
 import { ethers } from "ethers";
-import { ChainAdapter, BurnEvent, BurnVerification } from "../../types";
-import { chainConfigs, operatorKeys } from "../../config";
+import { ChainAdapter, BurnProof, MintResult, RefundResult } from "../../types/index.js";
+import { chainConfigs, operatorKeys } from "../../config/index.js";
 
-// Minimal ABI for our testEURCV ERC-20 with burn & mint
-const TEST_EURCV_ABI = [
+const BRIDGE_ABI = [
+  "event BurnForBridge(bytes32 indexed transferId, address indexed sender, uint256 amount, uint32 destDomain, bytes32 recipient, uint64 nonce)",
+];
+
+const TOKEN_ABI = [
   "function mint(address to, uint256 amount) external",
-  "function burn(uint256 amount) external",
-  "function bridgeBurn(uint256 amount, string destinationChain, string recipientAddress) external",
   "function balanceOf(address account) view returns (uint256)",
-  "function approve(address spender, uint256 amount) external returns (bool)",
-  "function decimals() view returns (uint8)",
   "event Transfer(address indexed from, address indexed to, uint256 value)",
-  "event BridgeBurn(address indexed sender, uint256 amount, string destinationChain, string recipientAddress)",
 ];
 
 export class EthereumAdapter implements ChainAdapter {
@@ -34,7 +32,7 @@ export class EthereumAdapter implements ChainAdapter {
       this.operatorWallet = new ethers.Wallet(key, this.provider);
       this.tokenContract = new ethers.Contract(
         config.tokenAddress,
-        TEST_EURCV_ABI,
+        TOKEN_ABI,
         this.operatorWallet
       );
       console.log("[Ethereum] Adapter initialized");
@@ -48,103 +46,84 @@ export class EthereumAdapter implements ChainAdapter {
     return this.tokenContract;
   }
 
-  async mint(recipientAddress: string, amount: string): Promise<string> {
-    const contract = this.ensureReady();
-    const decimals = await contract.decimals();
-    const parsedAmount = ethers.parseUnits(amount, decimals);
-
-    const tx = await contract.mint(recipientAddress, parsedAmount);
-    const receipt = await tx.wait();
-    console.log(`[Ethereum] Mint tx confirmed: ${receipt.hash}`);
-    return receipt.hash;
+  async executeMint(recipientAddress: string, amount: string): Promise<MintResult> {
+    try {
+      const contract = this.ensureReady();
+      const parsedAmount = ethers.parseUnits(amount, 6);
+      const tx = await contract.mint(recipientAddress, parsedAmount);
+      const receipt = await tx.wait();
+      console.log(`[Ethereum] Mint tx confirmed: ${receipt.hash}`);
+      return { success: true, txHash: receipt.hash };
+    } catch (err) {
+      console.error("[Ethereum] Mint failed:", err);
+      return { success: false, txHash: "" };
+    }
   }
 
-  async verifyBurn(txHash: string): Promise<BurnVerification> {
+  async verifyBurn(txHash: string): Promise<BurnProof> {
     this.ensureReady();
     const receipt = await this.provider.getTransactionReceipt(txHash);
-    if (!receipt) {
-      return { txHash, sender: "", amount: "0", confirmed: false };
+    if (!receipt || receipt.status !== 1) {
+      return { valid: false, sender: "", amount: "0", txHash };
     }
 
-    const iface = new ethers.Interface(TEST_EURCV_ABI);
+    const bridgeIface = new ethers.Interface(BRIDGE_ABI);
+    const tokenIface = new ethers.Interface(TOKEN_ABI);
 
-    // Try to find a BridgeBurn event first (has destination info)
+    // Try BurnForBridge event first (from EURCVBridge contract)
     for (const log of receipt.logs) {
       try {
-        const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
-        if (parsed && parsed.name === "BridgeBurn") {
-          const decimals = 6; // testEURCV uses 6 decimals
+        const parsed = bridgeIface.parseLog({ topics: log.topics as string[], data: log.data });
+        if (parsed && parsed.name === "BurnForBridge") {
           return {
+            valid: true,
+            sender: parsed.args[1],
+            amount: ethers.formatUnits(parsed.args[2], 6),
             txHash,
-            sender: parsed.args[0], // sender
-            amount: ethers.formatUnits(parsed.args[1], decimals), // amount
-            confirmed: receipt.status === 1,
-            destinationChain: parsed.args[2], // destinationChain
-            recipientAddress: parsed.args[3], // recipientAddress
+            transferId: parsed.args[0],
           };
         }
       } catch {
-        // Not a BridgeBurn log, continue
+        // Not a BurnForBridge log
       }
     }
 
-    // Fallback: look for Transfer to 0x0 (simple burn)
+    // Fallback: Transfer to 0x0 (simple burn)
     for (const log of receipt.logs) {
       try {
-        const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
-        if (
-          parsed &&
-          parsed.name === "Transfer" &&
-          parsed.args[1] === ethers.ZeroAddress
-        ) {
-          const decimals = 6;
+        const parsed = tokenIface.parseLog({ topics: log.topics as string[], data: log.data });
+        if (parsed && parsed.name === "Transfer" && parsed.args[1] === ethers.ZeroAddress) {
           return {
-            txHash,
+            valid: true,
             sender: parsed.args[0],
-            amount: ethers.formatUnits(parsed.args[2], decimals),
-            confirmed: receipt.status === 1,
+            amount: ethers.formatUnits(parsed.args[2], 6),
+            txHash,
           };
         }
       } catch {
-        // Not a Transfer log, continue
+        // Not a Transfer log
       }
     }
 
-    return { txHash, sender: "", amount: "0", confirmed: false };
+    return { valid: false, sender: "", amount: "0", txHash };
   }
 
-  listenForBurns(handler: (event: BurnEvent) => void): void {
-    if (!this.tokenContract) {
-      console.warn("[Ethereum] Adapter not configured, skipping burn listener");
-      return;
-    }
-
-    this.tokenContract.on(
-      "BridgeBurn",
-      (sender: string, amount: bigint, destChain: string, recipient: string, event: ethers.EventLog) => {
-        handler({
-          chain: "ethereum",
-          txHash: event.transactionHash,
-          sender,
-          amount: ethers.formatUnits(amount, 6),
-          destinationChain: destChain,
-          recipientAddress: recipient,
-          timestamp: Date.now(),
-        });
-      }
-    );
-
-    console.log("[Ethereum] Listening for BridgeBurn events...");
+  async refund(senderAddress: string, amount: string): Promise<RefundResult> {
+    return this.executeMint(senderAddress, amount);
   }
 
   async getBalance(address: string): Promise<string> {
     const contract = this.ensureReady();
     const balance = await contract.balanceOf(address);
-    const decimals = await contract.decimals();
-    return ethers.formatUnits(balance, decimals);
+    return ethers.formatUnits(balance, 6);
   }
 
-  isValidAddress(address: string): boolean {
-    return ethers.isAddress(address);
+  async isHealthy(): Promise<boolean> {
+    try {
+      await this.provider.getBlockNumber();
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

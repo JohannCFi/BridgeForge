@@ -1,11 +1,6 @@
 // ============================================================
 // BridgeForge – Solana Chain Adapter
-// Handles burn/mint of testEURCV on Solana (Devnet)
-//
-// Solana uses SPL tokens:
-// - Mint authority (operator) can mint new tokens
-// - Anyone can burn their own tokens
-// - Each holder needs an Associated Token Account (ATA)
+// Handles burn/mint of EURCV on Solana (Devnet)
 // ============================================================
 
 import {
@@ -14,13 +9,12 @@ import {
   PublicKey,
 } from "@solana/web3.js";
 import {
-  burn,
   mintTo,
   getOrCreateAssociatedTokenAccount,
   getAssociatedTokenAddress,
   getAccount,
 } from "@solana/spl-token";
-import { ChainAdapter, BurnEvent, BurnVerification } from "../../types/index.js";
+import { ChainAdapter, BurnProof, MintResult, RefundResult } from "../../types/index.js";
 import { chainConfigs, operatorKeys } from "../../config/index.js";
 
 export class SolanaAdapter implements ChainAdapter {
@@ -46,51 +40,48 @@ export class SolanaAdapter implements ChainAdapter {
     console.log("[Solana] Adapter initialized");
   }
 
-  async mint(recipientAddress: string, amount: string): Promise<string> {
-    if (!this.operatorKeypair || !this.mintAddress) {
-      throw new Error("[Solana] Wallet or mint not configured");
+  async executeMint(recipientAddress: string, amount: string): Promise<MintResult> {
+    try {
+      if (!this.operatorKeypair || !this.mintAddress) {
+        throw new Error("[Solana] Wallet or mint not configured");
+      }
+
+      const recipient = new PublicKey(recipientAddress);
+      const ata = await getOrCreateAssociatedTokenAccount(
+        this.connection,
+        this.operatorKeypair,
+        this.mintAddress,
+        recipient
+      );
+
+      const parsedAmount = Math.round(parseFloat(amount) * 10 ** 6);
+      const txSig = await mintTo(
+        this.connection,
+        this.operatorKeypair,
+        this.mintAddress,
+        ata.address,
+        this.operatorKeypair,
+        parsedAmount
+      );
+
+      console.log(`[Solana] Mint tx confirmed: ${txSig}`);
+      return { success: true, txHash: txSig };
+    } catch (err) {
+      console.error("[Solana] Mint failed:", err);
+      return { success: false, txHash: "" };
     }
-
-    const recipient = new PublicKey(recipientAddress);
-
-    // Create ATA for recipient if it doesn't exist
-    const ata = await getOrCreateAssociatedTokenAccount(
-      this.connection,
-      this.operatorKeypair, // payer
-      this.mintAddress, // token mint
-      recipient // owner
-    );
-
-    const parsedAmount = Math.round(parseFloat(amount) * 10 ** 6);
-
-    const txSig = await mintTo(
-      this.connection,
-      this.operatorKeypair, // payer
-      this.mintAddress, // token mint
-      ata.address, // destination
-      this.operatorKeypair, // mint authority
-      parsedAmount
-    );
-
-    console.log(`[Solana] Mint tx confirmed: ${txSig}`);
-    return txSig;
   }
 
-  async verifyBurn(txHash: string): Promise<BurnVerification> {
+  async verifyBurn(txHash: string): Promise<BurnProof> {
     const tx = await this.connection.getParsedTransaction(txHash, {
       maxSupportedTransactionVersion: 0,
     });
 
-    if (!tx || !tx.meta) {
-      return { txHash, sender: "", amount: "0", confirmed: false };
+    if (!tx || !tx.meta || tx.meta.err) {
+      return { valid: false, sender: "", amount: "0", txHash };
     }
 
-    // Check if transaction succeeded
-    if (tx.meta.err) {
-      return { txHash, sender: "", amount: "0", confirmed: false };
-    }
-
-    // Look for SPL Token burn instruction in inner instructions or main instructions
+    // Look for SPL Token burn instruction
     for (const ix of tx.transaction.message.instructions) {
       const parsed = ix as { program?: string; parsed?: { type?: string; info?: { amount?: string; authority?: string } } };
       if (
@@ -100,15 +91,15 @@ export class SolanaAdapter implements ChainAdapter {
       ) {
         const amount = (Number(parsed.parsed.info.amount) / 10 ** 6).toString();
         return {
-          txHash,
+          valid: true,
           sender: parsed.parsed.info.authority ?? "",
           amount,
-          confirmed: true,
+          txHash,
         };
       }
     }
 
-    // Fallback: check inner instructions
+    // Check inner instructions
     if (tx.meta.innerInstructions) {
       for (const inner of tx.meta.innerInstructions) {
         for (const ix of inner.instructions) {
@@ -120,45 +111,21 @@ export class SolanaAdapter implements ChainAdapter {
           ) {
             const amount = (Number(parsed.parsed.info.amount) / 10 ** 6).toString();
             return {
-              txHash,
+              valid: true,
               sender: parsed.parsed.info.authority ?? "",
               amount,
-              confirmed: true,
+              txHash,
             };
           }
         }
       }
     }
 
-    // If no burn instruction found but tx confirmed, return unconfirmed
-    return { txHash, sender: "", amount: "0", confirmed: false };
+    return { valid: false, sender: "", amount: "0", txHash };
   }
 
-  listenForBurns(handler: (event: BurnEvent) => void): void {
-    if (!this.mintAddress) {
-      console.log("[Solana] Mint not configured, skipping burn listener");
-      return;
-    }
-
-    // Listen for logs mentioning the token mint (burn events)
-    this.connection.onLogs(
-      this.mintAddress,
-      (logs) => {
-        // SPL Token burn instruction contains "Burn" in the logs
-        if (logs.logs.some((log) => log.includes("Burn"))) {
-          handler({
-            chain: "solana",
-            txHash: logs.signature,
-            sender: "", // Would need to parse the tx for the actual sender
-            amount: "0", // Would need to parse the tx for the actual amount
-            timestamp: Date.now(),
-          });
-        }
-      },
-      "confirmed"
-    );
-
-    console.log("[Solana] Listening for burn events...");
+  async refund(senderAddress: string, amount: string): Promise<RefundResult> {
+    return this.executeMint(senderAddress, amount);
   }
 
   async getBalance(address: string): Promise<string> {
@@ -171,11 +138,16 @@ export class SolanaAdapter implements ChainAdapter {
       const account = await getAccount(this.connection, ata);
       return (Number(account.amount) / 10 ** 6).toString();
     } catch {
-      return "0"; // ATA doesn't exist = no balance
+      return "0";
     }
   }
 
-  isValidAddress(address: string): boolean {
-    return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+  async isHealthy(): Promise<boolean> {
+    try {
+      await this.connection.getSlot();
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
