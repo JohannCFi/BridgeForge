@@ -2,28 +2,38 @@ export type Chain = "ethereum" | "solana" | "xrpl" | "stellar";
 
 export type TransferStatus =
   | "pending"
-  | "burning"
-  | "burned"
-  | "attesting"
+  | "rejected"
+  | "ready"
+  | "expired"
+  | "burn_confirmed"
   | "attested"
   | "minting"
   | "completed"
-  | "failed";
+  | "mint_failed"
+  | "refunding"
+  | "refunded"
+  | "refund_failed";
 
-export interface TransferRequest {
+export interface CreateTransferRequest {
   sourceChain: Chain;
-  destinationChain: Chain;
-  senderAddress: string;
-  recipientAddress: string;
+  destChain: Chain;
+  sourceAddress: string;
+  destAddress: string;
   amount: string;
 }
 
-export interface Transfer extends TransferRequest {
+export interface Transfer {
   id: string;
   status: TransferStatus;
-  token: string;
+  sourceChain: Chain;
+  sourceAddress: string;
+  destChain: Chain;
+  destAddress: string;
+  amount: string;
   burnTxHash?: string;
   mintTxHash?: string;
+  refundTxHash?: string;
+  errorLog?: string;
   createdAt: string;
   updatedAt: string;
 }

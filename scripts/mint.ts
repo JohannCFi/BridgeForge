@@ -15,7 +15,16 @@ if (!tokenAddress) {
 const [deployer] = await ethers.getSigners();
 console.log("Minting with account:", deployer.address);
 
-const token = await ethers.getContractAt("TestEURCV", tokenAddress);
+const token = await ethers.getContractAt("EURCVToken", tokenAddress);
+
+// Grant MINTER_ROLE to deployer if not already granted
+const minterRole = await token.MINTER_ROLE();
+const hasMinterRole = await token.hasRole(minterRole, deployer.address);
+if (!hasMinterRole) {
+  const grantTx = await token.grantRole(minterRole, deployer.address);
+  await grantTx.wait();
+  console.log("MINTER_ROLE granted to deployer");
+}
 
 // Mint 10,000 testEURCV to the deployer (6 decimals like real EURCV)
 const amount = ethers.parseUnits("10000", 6);

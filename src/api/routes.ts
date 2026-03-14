@@ -1,123 +1,119 @@
 // ============================================================
-// BridgeForge – API Routes
-// REST API that abstracts blockchain complexity for clients.
-// Clients interact with simple endpoints, never with chains directly.
+// BridgeForge – API Routes (v1)
+// REST API for the cross-chain bridge with Zod validation.
 // ============================================================
 
 import { Router, Request, Response } from "express";
-import { BridgeEngine } from "../core/bridge";
-import { TransferRequest, ApiResponse, Chain } from "../types";
+import { TransferService } from "../services/transfer.js";
+import { ChainStatusService } from "../services/chain-status.js";
+import { Chain, ChainAdapter, ApiResponse } from "../types/index.js";
+import { createTransferSchema, confirmBurnSchema, transfersQuerySchema, faucetSchema } from "./validation.js";
+import { chainConfigs } from "../config/index.js";
 
-const VALID_CHAINS: Chain[] = ["ethereum", "solana", "xrpl", "stellar"];
-
-export function createRouter(bridge: BridgeEngine): Router {
+export function createRouter(
+  transferService: TransferService,
+  chainStatusService: ChainStatusService,
+  adapters: Record<Chain, ChainAdapter>,
+): Router {
   const router = Router();
 
+  // === v1 routes ===
+
   /**
-   * POST /api/transfer
-   * Initiate a cross-chain transfer.
-   *
-   * The client just says: "move X tokens from chain A to chain B"
-   * The bridge handles everything: burn, attestation, mint.
-   *
-   * Body: { sourceChain, destinationChain, senderAddress, recipientAddress, amount }
+   * POST /api/v1/transfer
+   * Register a transfer intent. Returns transfer in ready or rejected status.
    */
-  router.post("/transfer", async (req: Request, res: Response) => {
+  router.post("/v1/transfer", async (req: Request, res: Response) => {
     try {
-      const { sourceChain, destinationChain, senderAddress, recipientAddress, amount } = req.body;
-
-      // Validate required fields
-      const missing = [
-        !sourceChain && "sourceChain",
-        !destinationChain && "destinationChain",
-        !senderAddress && "senderAddress",
-        !recipientAddress && "recipientAddress",
-        !amount && "amount",
-      ].filter(Boolean);
-      if (missing.length > 0) {
-        res.status(400).json({ success: false, error: `Missing fields: ${missing.join(", ")}` });
+      const parsed = createTransferSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: parsed.error.issues[0].message });
         return;
       }
 
-      // Validate chains
-      if (!VALID_CHAINS.includes(sourceChain)) {
-        res.status(400).json({ success: false, error: `Invalid sourceChain: ${sourceChain}` });
-        return;
-      }
-      if (!VALID_CHAINS.includes(destinationChain)) {
-        res.status(400).json({ success: false, error: `Invalid destinationChain: ${destinationChain}` });
-        return;
-      }
-
-      const request: TransferRequest = {
-        sourceChain,
-        destinationChain,
-        senderAddress,
-        recipientAddress,
-        amount: String(amount),
-        token: "testEURCV",
-      };
-
-      const transfer = await bridge.initiateTransfer(request);
-
-      const response: ApiResponse = {
-        success: true,
-        data: transfer,
-      };
-      res.status(201).json(response);
+      const transfer = await transferService.createTransfer(parsed.data);
+      res.status(201).json({ success: true, data: transfer } as ApiResponse);
     } catch (error) {
-      const response: ApiResponse = {
+      res.status(400).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
-      };
-      res.status(400).json(response);
+      } as ApiResponse);
     }
   });
 
   /**
-   * GET /api/transfer/:id
-   * Check the status of a transfer.
-   * Clients can poll this to track progress.
+   * POST /api/v1/transfer/:id/confirm-burn
+   * Confirm burn tx, verify on-chain, create attestation, enqueue mint.
    */
-  router.get("/transfer/:id", (req: Request, res: Response) => {
-    const transfer = bridge.getTransfer(req.params.id as string);
+  router.post("/v1/transfer/:id/confirm-burn", async (req: Request, res: Response) => {
+    try {
+      const parsed = confirmBurnSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+        return;
+      }
+
+      const id = req.params.id as string;
+      const transfer = await transferService.confirmBurn(id, parsed.data.burnTxHash);
+      res.json({ success: true, data: transfer } as ApiResponse);
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      } as ApiResponse);
+    }
+  });
+
+  /**
+   * GET /api/v1/transfer/:id
+   * Check the status of a transfer.
+   */
+  router.get("/v1/transfer/:id", async (req: Request, res: Response) => {
+    const transfer = await transferService.getTransfer(req.params.id as string);
 
     if (!transfer) {
-      const response: ApiResponse = { success: false, error: "Transfer not found" };
-      res.status(404).json(response);
+      res.status(404).json({ success: false, error: "Transfer not found" } as ApiResponse);
       return;
     }
 
-    const response: ApiResponse = { success: true, data: transfer };
-    res.json(response);
+    res.json({ success: true, data: transfer } as ApiResponse);
   });
 
   /**
-   * GET /api/transfers
-   * List all transfers (for admin/debug).
+   * GET /api/v1/transfers
+   * List transfers with optional filters.
    */
-  router.get("/transfers", (_req: Request, res: Response) => {
-    const transfers = bridge.getAllTransfers();
-    const response: ApiResponse = { success: true, data: transfers };
-    res.json(response);
+  router.get("/v1/transfers", async (req: Request, res: Response) => {
+    const parsed = transfersQuerySchema.safeParse(req.query);
+    const filters = parsed.success ? parsed.data : {};
+    const transfers = await transferService.getTransfers(filters);
+    res.json({ success: true, data: transfers } as ApiResponse);
   });
 
   /**
-   * GET /api/balance/:chain/:address
-   * Get testEURCV balance for an address on a specific chain.
+   * GET /api/v1/health
+   * Returns chain health statuses.
    */
-  router.get("/balance/:chain/:address", async (req: Request, res: Response) => {
+  router.get("/v1/health", async (_req: Request, res: Response) => {
+    const status = await chainStatusService.getStatus();
+    res.json({ success: true, data: status });
+  });
+
+  /**
+   * GET /api/v1/balance/:chain/:address
+   * Get EURCV balance for an address on a specific chain.
+   */
+  router.get("/v1/balance/:chain/:address", async (req: Request, res: Response) => {
     try {
       const chain = req.params.chain as Chain;
-      const address = req.params.address as string;
-
-      if (!VALID_CHAINS.includes(chain)) {
+      const adapter = adapters[chain];
+      if (!adapter) {
         res.status(400).json({ success: false, error: `Invalid chain: ${chain}` });
         return;
       }
 
-      const balance = await bridge.getBalance(chain, address);
-      res.json({ success: true, data: { chain, address, balance, token: "testEURCV" } });
+      const balance = await adapter.getBalance(req.params.address as string);
+      res.json({ success: true, data: { chain, address: req.params.address, balance } });
     } catch (error) {
       res.status(500).json({
         success: false,
@@ -127,22 +123,69 @@ export function createRouter(bridge: BridgeEngine): Router {
   });
 
   /**
-   * GET /api/chains
-   * List supported chains. Useful for the frontend to build dropdowns.
+   * GET /api/v1/config
+   * Returns token addresses for each chain.
    */
-  router.get("/chains", (_req: Request, res: Response) => {
-    const chains: Chain[] = VALID_CHAINS;
-    const response: ApiResponse = { success: true, data: chains };
-    res.json(response);
+  router.get("/v1/config", (_req: Request, res: Response) => {
+    const config = Object.fromEntries(
+      Object.entries(chainConfigs).map(([chain, cfg]) => [chain, { tokenAddress: cfg.tokenAddress }])
+    );
+    res.json({ success: true, data: config });
   });
 
   /**
-   * GET /api/health
-   * Health check.
+   * POST /api/v1/faucet
+   * Mint 1000 tEURCV to an address on any chain (testnet only).
    */
-  router.get("/health", (_req: Request, res: Response) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  const faucetCooldowns = new Map<string, number>();
+  const FAUCET_AMOUNT = "1000";
+  const FAUCET_COOLDOWN_MS = 60_000;
+
+  router.post("/v1/faucet", async (req: Request, res: Response) => {
+    try {
+      const parsed = faucetSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+        return;
+      }
+
+      const { chain, address } = parsed.data;
+      const adapter = adapters[chain];
+      if (!adapter) {
+        res.status(400).json({ success: false, error: `Invalid chain: ${chain}` });
+        return;
+      }
+
+      // Rate limit: 1 request per address+chain per 60s
+      const key = `${chain}:${address}`;
+      const lastMint = faucetCooldowns.get(key);
+      if (lastMint && Date.now() - lastMint < FAUCET_COOLDOWN_MS) {
+        const remaining = Math.ceil((FAUCET_COOLDOWN_MS - (Date.now() - lastMint)) / 1000);
+        res.status(429).json({ success: false, error: `Please wait ${remaining}s before requesting again` });
+        return;
+      }
+
+      const result = await adapter.executeMint(address, FAUCET_AMOUNT);
+      if (!result.success) {
+        res.status(500).json({ success: false, error: "Mint failed. Check that your address has a trustline set up." });
+        return;
+      }
+
+      faucetCooldowns.set(key, Date.now());
+      res.json({ success: true, data: { chain, address, amount: FAUCET_AMOUNT, txHash: result.txHash } });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   });
+
+  // === Legacy routes (redirect to v1) ===
+  router.post("/transfer", (_req, res) => res.redirect(307, "/api/v1/transfer"));
+  router.get("/transfers", (_req, res) => res.redirect("/api/v1/transfers"));
+  router.get("/health", (_req, res) => res.redirect("/api/v1/health"));
+  router.get("/config", (_req, res) => res.redirect("/api/v1/config"));
 
   return router;
 }

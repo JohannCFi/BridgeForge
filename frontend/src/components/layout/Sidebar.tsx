@@ -1,6 +1,6 @@
-import { Wallet, ArrowLeftRight, History } from "lucide-react";
+import { Wallet, ArrowLeftRight, History, Droplets } from "lucide-react";
 
-type Tab = "assets" | "bridge" | "transactions";
+type Tab = "assets" | "bridge" | "transactions" | "faucet";
 
 interface SidebarProps {
   activeTab: Tab;
@@ -11,6 +11,7 @@ const NAV_ITEMS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "assets", label: "Assets", icon: <Wallet size={18} /> },
   { id: "bridge", label: "Bridge", icon: <ArrowLeftRight size={18} /> },
   { id: "transactions", label: "Transactions", icon: <History size={18} /> },
+  { id: "faucet", label: "Faucet", icon: <Droplets size={18} /> },
 ];
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
