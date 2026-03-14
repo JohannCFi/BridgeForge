@@ -3,15 +3,19 @@ import { useTransfers } from "../../api/hooks";
 import type { Transfer, TransferStatus } from "../../types";
 import { getChain } from "../../config/chains";
 
-const STATUS_STYLES: Record<TransferStatus, string> = {
+const STATUS_STYLES: Partial<Record<TransferStatus, string>> = {
   pending: "bg-yellow-500/10 text-yellow-400",
-  burning: "bg-orange-500/10 text-orange-400",
-  burned: "bg-orange-500/10 text-orange-400",
-  attesting: "bg-blue-500/10 text-blue-400",
+  ready: "bg-yellow-500/10 text-yellow-400",
+  burn_confirmed: "bg-orange-500/10 text-orange-400",
   attested: "bg-blue-500/10 text-blue-400",
   minting: "bg-purple-500/10 text-purple-400",
   completed: "bg-emerald-500/10 text-emerald-400",
-  failed: "bg-red-500/10 text-red-400",
+  mint_failed: "bg-red-500/10 text-red-400",
+  rejected: "bg-red-500/10 text-red-400",
+  expired: "bg-zinc-500/10 text-zinc-400",
+  refunding: "bg-orange-500/10 text-orange-400",
+  refunded: "bg-zinc-500/10 text-zinc-400",
+  refund_failed: "bg-red-500/10 text-red-400",
 };
 
 export function TransactionsPanel() {
@@ -47,7 +51,7 @@ export function TransactionsPanel() {
 
 function TransactionRow({ transfer }: { transfer: Transfer }) {
   const source = getChain(transfer.sourceChain);
-  const dest = getChain(transfer.destinationChain);
+  const dest = getChain(transfer.destChain);
   const time = new Date(transfer.createdAt).toLocaleString();
 
   return (
@@ -86,7 +90,7 @@ function TransactionRow({ transfer }: { transfer: Transfer }) {
           {/* Status badge */}
           <span
             className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
-              STATUS_STYLES[transfer.status]
+              STATUS_STYLES[transfer.status] ?? "bg-zinc-500/10 text-zinc-400"
             }`}
           >
             {transfer.status}
