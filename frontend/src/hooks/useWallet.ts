@@ -76,29 +76,41 @@ export function useChainWallet(chain: Chain): ChainWallet {
 
   const ethSignBurn = useCallback(
     async (params: BurnParams): Promise<string> => {
-      if (!walletClient || !ethAddress) throw new Error("Ethereum wallet not connected");
+      if (!ethAddress) throw new Error("Ethereum wallet not connected");
 
       const { ethers } = await import("ethers");
-      const provider = new ethers.BrowserProvider(walletClient.transport);
-      const signer = await provider.getSigner();
 
+      let signer;
+      if (ethConnector) {
+        const provider = await ethConnector.getProvider();
+        const ethProvider = new ethers.BrowserProvider(provider as any);
+        signer = await ethProvider.getSigner();
+      } else if (walletClient) {
+        const provider = new ethers.BrowserProvider(walletClient.transport);
+        signer = await provider.getSigner();
+      } else {
+        throw new Error("No Ethereum provider available");
+      }
+
+      // Use a reliable RPC for read calls (wallet RPC may be unreliable on custom networks)
+      const readProvider = new ethers.JsonRpcProvider(
+        import.meta.env.VITE_ALCHEMY_SEPOLIA_URL
+      );
       const abi = [
-        "function bridgeBurn(uint256 amount, string destinationChain, string recipientAddress) external",
+        "function burn(uint256 amount) external",
         "function decimals() view returns (uint8)",
       ];
-      const contract = new ethers.Contract(params.tokenAddress, abi, signer);
-      const decimals = await contract.decimals();
+      const readContract = new ethers.Contract(params.tokenAddress, abi, readProvider);
+      const decimals = await readContract.decimals();
       const parsedAmount = ethers.parseUnits(params.amount, decimals);
 
-      const tx = await contract.bridgeBurn(
-        parsedAmount,
-        params.destinationChain ?? "",
-        params.recipientAddress ?? ""
-      );
+      // Use wallet signer for the actual transaction
+      const writeContract = new ethers.Contract(params.tokenAddress, abi, signer);
+      const tx = await writeContract.burn(parsedAmount);
       const receipt = await tx.wait();
       return receipt.hash;
     },
-    [walletClient, ethAddress]
+    [walletClient, ethAddress, ethConnector]
   );
 
   // ---------- Solana (wallet-adapter) ----------
@@ -174,8 +186,13 @@ export function useChainWallet(chain: Chain): ChainWallet {
             );
             if (adapter) {
               solana.select(adapter.adapter.name);
+            } else {
+              throw new Error(`Solana wallet "${walletId}" not found`);
             }
-          } else if (solana.wallet) {
+          }
+          // wallet-adapter auto-connects after select thanks to autoConnect
+          // but force connect if not yet connected
+          if (!solana.connected) {
             await solana.connect();
           }
         },

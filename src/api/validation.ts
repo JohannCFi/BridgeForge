@@ -21,5 +21,10 @@ export const transfersQuerySchema = z.object({
   chain: z.enum(chains).optional(),
 });
 
+export const faucetSchema = z.object({
+  chain: z.enum(chains),
+  address: z.string().min(1),
+});
+
 export type CreateTransferInput = z.infer<typeof createTransferSchema>;
 export type ConfirmBurnInput = z.infer<typeof confirmBurnSchema>;

@@ -9,59 +9,24 @@ export type WalletOption = {
 };
 
 const WALLETS: WalletOption[] = [
-  {
-    id: "metamask",
-    name: "MetaMask",
-    icon: "/icons/metamask.svg",
-    chains: ["ethereum"],
-  },
-  {
-    id: "phantom",
-    name: "Phantom",
-    icon: "/icons/phantom.svg",
-    chains: ["ethereum", "solana"],
-  },
-  {
-    id: "rabby",
-    name: "Rabby",
-    icon: "/icons/rabby.svg",
-    chains: ["ethereum"],
-  },
-  {
-    id: "walletconnect",
-    name: "WalletConnect",
-    icon: "/icons/walletconnect.svg",
-    chains: ["ethereum", "solana"],
-  },
-  {
-    id: "crossmark",
-    name: "Crossmark",
-    icon: "/icons/crossmark.svg",
-    chains: ["xrpl"],
-  },
-  {
-    id: "gemwallet",
-    name: "GemWallet",
-    icon: "/icons/gemwallet.svg",
-    chains: ["xrpl"],
-  },
-  {
-    id: "freighter",
-    name: "Freighter",
-    icon: "/icons/freighter.svg",
-    chains: ["stellar"],
-  },
+  { id: "metamask",       name: "MetaMask",       icon: "/icons/metamask.svg",       chains: ["ethereum"] },
+  { id: "phantom",        name: "Phantom",        icon: "/icons/favicon-96x96.png",  chains: ["solana"] },
+  { id: "rabby",          name: "Rabby",           icon: "/icons/rabby.svg",          chains: ["ethereum"] },
+  { id: "walletconnect",  name: "WalletConnect",  icon: "/icons/walletconnect.svg",  chains: ["ethereum"] },
+  { id: "crossmark",      name: "Crossmark",      icon: "/icons/crossmark.svg",      chains: ["xrpl"] },
+  { id: "gemwallet",      name: "GemWallet",      icon: "/icons/logo.svg",      chains: ["xrpl"] },
+  { id: "freighter",      name: "Freighter",      icon: "/icons/image.png",          chains: ["stellar"] },
 ];
 
 interface WalletModalProps {
   open: boolean;
   onClose: () => void;
-  chain: Chain;
   side: "source" | "destination";
+  chain: Chain;
   onSelect: (walletId: string) => void;
 }
 
-export function WalletModal({ open, onClose, chain, side, onSelect }: WalletModalProps) {
+export function WalletModal({ open, onClose, side, chain, onSelect }: WalletModalProps) {
   if (!open) return null;
 
   const available = WALLETS.filter((w) => w.chains.includes(chain));

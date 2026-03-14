@@ -22,6 +22,7 @@ export function BridgePanel() {
   const [amount, setAmount] = useState("");
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [walletModalSide, setWalletModalSide] = useState<"source" | "destination">("source");
+  const [manualDestAddress, setManualDestAddress] = useState("");
 
   const { data: chainConfig } = useChainConfig();
   const { data: chainStatus } = useChainStatus();
@@ -31,12 +32,21 @@ export function BridgePanel() {
 
   const { bridge, transferId, step, error, reset } = useBridge();
 
-  // Balance
+  // Effective destination address: wallet or manual input
+  const destAddress = destWallet.address || manualDestAddress;
+
+  // Balances
   const { data: balanceData } = useBalance(
     sourceChain,
     sourceWallet.address || ""
   );
   const balance = balanceData?.balance ?? "0";
+
+  const { data: destBalanceData } = useBalance(
+    destChain,
+    destAddress || ""
+  );
+  const destBalance = destBalanceData?.balance ?? "0";
 
   const swap = () => {
     const prev = sourceChain;
@@ -54,20 +64,20 @@ export function BridgePanel() {
     const wallet = walletModalSide === "source" ? sourceWallet : destWallet;
     try {
       await wallet.connect(walletId);
-    } catch (_e) {
-      // handled by useBridge
+    } catch (e) {
+      console.error("Wallet connect error:", e);
     }
   };
 
   const handleBridge = async () => {
-    if (!sourceWallet.address || !destWallet.address || !amount || !chainConfig) return;
+    if (!sourceWallet.address || !destAddress || !amount || !chainConfig) return;
 
     const tokenAddress = chainConfig[sourceChain].tokenAddress;
     await bridge({
       sourceChain,
       destChain,
       sourceAddress: sourceWallet.address,
-      destAddress: destWallet.address,
+      destAddress,
       amount,
       signBurn: sourceWallet.signBurn,
       tokenAddress,
@@ -80,15 +90,19 @@ export function BridgePanel() {
   const sourceDown = chainStatus?.[sourceChain] === false;
   const destDown = chainStatus?.[destChain] === false;
   const chainDown = sourceDown || destDown;
+  const sameAddress =
+    !!sourceWallet.address &&
+    !!destAddress &&
+    sourceWallet.address.toLowerCase() === destAddress.toLowerCase();
   const insufficientBalance =
     !!amount && parseFloat(amount) > 0 && parseFloat(amount) > parseFloat(balance);
   const isProcessing = step === "registering" || step === "burning" || step === "confirming";
 
+  const hasDestination = !!destAddress;
+
   const handleMainButton = () => {
     if (!sourceWallet.connected) {
       openWalletModal("source");
-    } else if (!destWallet.connected) {
-      openWalletModal("destination");
     } else {
       handleBridge();
     }
@@ -103,7 +117,8 @@ export function BridgePanel() {
       if (step === "confirming") return "Verifying & minting...";
     }
     if (!sourceWallet.connected) return "Connect source wallet";
-    if (!destWallet.connected) return "Connect destination wallet";
+    if (!hasDestination) return "Enter destination address";
+    if (sameAddress) return "Source and destination must differ";
     if (!amount || parseFloat(amount) <= 0) return "Enter an amount";
     if (insufficientBalance) return "Insufficient balance";
     return "Bridge EURCV";
@@ -114,8 +129,7 @@ export function BridgePanel() {
     !chainDown &&
     !isProcessing &&
     (!sourceWallet.connected ||
-      !destWallet.connected ||
-      (!!amount && parseFloat(amount) > 0 && !insufficientBalance));
+      (hasDestination && !sameAddress && !!amount && parseFloat(amount) > 0 && !insufficientBalance));
 
   return (
     <div className="w-full max-w-lg mx-auto">
@@ -179,17 +193,37 @@ export function BridgePanel() {
             <span className="text-xs text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
               To <ChainStatusBadge chain={destChain} />
             </span>
-            <WalletBadge
-              address={destWallet.address}
-              connected={destWallet.connected}
-              onConnect={() => openWalletModal("destination")}
-              onDisconnect={() => destWallet.disconnect()}
-            />
+            <div className="flex items-center gap-2">
+              {hasDestination && (
+                <span className="text-xs text-zinc-500">
+                  {parseFloat(destBalance).toFixed(2)} EURCV
+                </span>
+              )}
+              <WalletBadge
+                address={destWallet.address}
+                connected={destWallet.connected}
+                onConnect={() => openWalletModal("destination")}
+                onDisconnect={() => { destWallet.disconnect(); setManualDestAddress(""); }}
+              />
+            </div>
           </div>
 
           <ChainSelector value={destChain} onChange={setDestChain} />
 
-          {destWallet.connected && amount && parseFloat(amount) > 0 && (
+          {/* Manual address input (when wallet not connected) */}
+          {!destWallet.connected && (
+            <div className="mt-3">
+              <input
+                type="text"
+                value={manualDestAddress}
+                onChange={(e) => setManualDestAddress(e.target.value)}
+                placeholder="Or paste destination address..."
+                className="w-full bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors"
+              />
+            </div>
+          )}
+
+          {hasDestination && amount && parseFloat(amount) > 0 && (
             <div className="mt-3 flex items-center justify-between text-xs text-zinc-500 px-1">
               <span>You will receive</span>
               <span className="text-white font-medium">~{amount} EURCV</span>
@@ -208,12 +242,12 @@ export function BridgePanel() {
         <button
           onClick={handleMainButton}
           disabled={!mainButtonEnabled}
-          className={`w-full mt-5 py-4 rounded-xl text-sm font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+          className={`w-full mt-5 py-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
             mainButtonEnabled
-              ? !sourceWallet.connected || !destWallet.connected
-                ? "bg-zinc-700 text-zinc-200 hover:bg-zinc-600"
-                : "bg-white text-black hover:bg-zinc-200"
-              : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+              ? !sourceWallet.connected || !hasDestination
+                ? "bg-emerald-600 text-white hover:bg-emerald-500 cursor-pointer"
+                : "bg-white text-black hover:bg-zinc-200 cursor-pointer"
+              : "bg-zinc-800/50 text-zinc-600 cursor-not-allowed"
           }`}
         >
           {isProcessing && <Loader2 size={16} className="animate-spin" />}
@@ -231,8 +265,8 @@ export function BridgePanel() {
           </div>
         )}
 
-        {/* Error without transferId (e.g. rejected before creation) */}
-        {step === "error" && !transferId && error && (
+        {/* Error */}
+        {step === "error" && error && (
           <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
             <p className="text-xs text-red-400">{error}</p>
             <button
@@ -244,17 +278,6 @@ export function BridgePanel() {
           </div>
         )}
 
-        {step === "done" && (
-          <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-            <p className="text-xs text-emerald-400">Bridge complete!</p>
-            <button
-              onClick={reset}
-              className="text-xs text-emerald-300 underline mt-1 cursor-pointer"
-            >
-              Start new transfer
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Wallet selection modal */}
@@ -262,6 +285,7 @@ export function BridgePanel() {
         open={walletModalOpen}
         onClose={() => setWalletModalOpen(false)}
         side={walletModalSide}
+        chain={walletModalSide === "source" ? sourceChain : destChain}
         onSelect={handleWalletSelect}
       />
     </div>

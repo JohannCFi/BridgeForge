@@ -62,6 +62,7 @@ async function main() {
     console.log("  GET  /api/v1/health                 – Chain health status");
     console.log("  GET  /api/v1/balance/:chain/:addr   – Get balance");
     console.log("  GET  /api/v1/config                 – Token addresses");
+    console.log("  POST /api/v1/faucet                 – Mint test tokens");
   });
 
   // Graceful shutdown

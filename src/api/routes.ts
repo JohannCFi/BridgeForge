@@ -7,7 +7,7 @@ import { Router, Request, Response } from "express";
 import { TransferService } from "../services/transfer.js";
 import { ChainStatusService } from "../services/chain-status.js";
 import { Chain, ChainAdapter, ApiResponse } from "../types/index.js";
-import { createTransferSchema, confirmBurnSchema, transfersQuerySchema } from "./validation.js";
+import { createTransferSchema, confirmBurnSchema, transfersQuerySchema, faucetSchema } from "./validation.js";
 import { chainConfigs } from "../config/index.js";
 
 export function createRouter(
@@ -131,6 +131,54 @@ export function createRouter(
       Object.entries(chainConfigs).map(([chain, cfg]) => [chain, { tokenAddress: cfg.tokenAddress }])
     );
     res.json({ success: true, data: config });
+  });
+
+  /**
+   * POST /api/v1/faucet
+   * Mint 1000 tEURCV to an address on any chain (testnet only).
+   */
+  const faucetCooldowns = new Map<string, number>();
+  const FAUCET_AMOUNT = "1000";
+  const FAUCET_COOLDOWN_MS = 60_000;
+
+  router.post("/v1/faucet", async (req: Request, res: Response) => {
+    try {
+      const parsed = faucetSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+        return;
+      }
+
+      const { chain, address } = parsed.data;
+      const adapter = adapters[chain];
+      if (!adapter) {
+        res.status(400).json({ success: false, error: `Invalid chain: ${chain}` });
+        return;
+      }
+
+      // Rate limit: 1 request per address+chain per 60s
+      const key = `${chain}:${address}`;
+      const lastMint = faucetCooldowns.get(key);
+      if (lastMint && Date.now() - lastMint < FAUCET_COOLDOWN_MS) {
+        const remaining = Math.ceil((FAUCET_COOLDOWN_MS - (Date.now() - lastMint)) / 1000);
+        res.status(429).json({ success: false, error: `Please wait ${remaining}s before requesting again` });
+        return;
+      }
+
+      const result = await adapter.executeMint(address, FAUCET_AMOUNT);
+      if (!result.success) {
+        res.status(500).json({ success: false, error: "Mint failed. Check that your address has a trustline set up." });
+        return;
+      }
+
+      faucetCooldowns.set(key, Date.now());
+      res.json({ success: true, data: { chain, address, amount: FAUCET_AMOUNT, txHash: result.txHash } });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   });
 
   // === Legacy routes (redirect to v1) ===

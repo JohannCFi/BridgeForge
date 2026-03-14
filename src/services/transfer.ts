@@ -71,7 +71,7 @@ export class TransferService {
       throw new Error("Burn verification failed");
     }
 
-    if (proof.amount !== transfer.amount.toString()) {
+    if (parseFloat(proof.amount) !== parseFloat(transfer.amount.toString())) {
       throw new Error(`Amount mismatch: expected ${transfer.amount}, got ${proof.amount}`);
     }
 
@@ -104,7 +104,7 @@ export class TransferService {
       sender: senderBytes32,
       recipient: recipientBytes32,
       amount: transfer.amount.toString(),
-      burnTxHash: ethers.zeroPadValue(burnTxHash, 32),
+      burnTxHash: ethers.zeroPadValue(burnTxHash.startsWith("0x") ? burnTxHash : `0x${burnTxHash}`, 32),
     };
 
     const signature = await this.attestation.signMessage(message);

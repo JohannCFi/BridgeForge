@@ -48,4 +48,11 @@ export const api = {
   /** Get chain configs (token addresses) */
   getConfig: () =>
     request<Record<Chain, { tokenAddress: string }>>("/config"),
+
+  /** Faucet: mint 1000 tEURCV to an address */
+  faucet: (chain: Chain, address: string) =>
+    request<{ chain: Chain; address: string; amount: string; txHash: string }>("/faucet", {
+      method: "POST",
+      body: JSON.stringify({ chain, address }),
+    }),
 };

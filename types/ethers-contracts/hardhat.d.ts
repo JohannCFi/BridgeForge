@@ -10,13 +10,21 @@ import * as Contracts from "./index.js";
 
 declare module "@nomicfoundation/hardhat-ethers/types" {
   interface HardhatEthersHelpers extends HardhatEthersHelpersBase {
-  getContractFactory(name: 'TestEURCV', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.TestEURCV__factory>
+  getContractFactory(name: 'EURCVBridge', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.EURCVBridge__factory>
+getContractFactory(name: 'EURCVToken', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.EURCVToken__factory>
+getContractFactory(name: 'TestEURCV', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.TestEURCV__factory>
 
-  getContractAt(name: 'TestEURCV', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.TestEURCV>
+  getContractAt(name: 'EURCVBridge', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.EURCVBridge>
+getContractAt(name: 'EURCVToken', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.EURCVToken>
+getContractAt(name: 'TestEURCV', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.TestEURCV>
 
-  deployContract(name: 'TestEURCV', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TestEURCV>
+  deployContract(name: 'EURCVBridge', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.EURCVBridge>
+deployContract(name: 'EURCVToken', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.EURCVToken>
+deployContract(name: 'TestEURCV', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TestEURCV>
 
-  deployContract(name: 'TestEURCV', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TestEURCV>
+  deployContract(name: 'EURCVBridge', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.EURCVBridge>
+deployContract(name: 'EURCVToken', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.EURCVToken>
+deployContract(name: 'TestEURCV', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TestEURCV>
 
     // default types
     getContractFactory(

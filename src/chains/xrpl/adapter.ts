@@ -77,14 +77,15 @@ export class XrplAdapter implements ChainAdapter {
       });
 
       const txJson = response.result.tx_json;
+      const txAmount = (txJson as any).DeliverMax ?? (txJson as any).Amount;
 
       if (
         txJson.TransactionType === "Payment" &&
         txJson.Destination === this.issuerAddress &&
-        typeof txJson.Amount === "object" &&
-        txJson.Amount !== null
+        typeof txAmount === "object" &&
+        txAmount !== null
       ) {
-        const amount = txJson.Amount as { currency: string; value: string };
+        const amount = txAmount as { currency: string; value: string };
         if (amount.currency === CURRENCY_CODE) {
           const meta = response.result.meta as { TransactionResult?: string } | undefined;
           const confirmed = meta?.TransactionResult === "tesSUCCESS";
