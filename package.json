@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc && cd frontend && npm install && npm run build",
-    "start": "npx prisma migrate deploy && node dist/index.js"
+    "build": "npx prisma generate --schema=src/db/schema.prisma && tsc && cd frontend && npm install && npm run build",
+    "start": "npx prisma migrate deploy --schema=src/db/schema.prisma && node dist/index.js"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^7.0.0",
@@ -15,6 +15,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/mocha": "^10.0.10",
+    "@types/node": "^25.5.0",
     "hardhat": "^3.1.11",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
