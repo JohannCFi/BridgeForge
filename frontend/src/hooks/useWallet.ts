@@ -10,8 +10,8 @@ import { useCallback } from "react";
 import { useAccount, useConnect, useDisconnect, useWalletClient } from "wagmi";
 import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import type { Chain } from "../types";
-import { useXrplWallet } from "./useXrplWallet";
-import { useStellarWallet } from "./useStellarWallet";
+import { useXrplWalletContext } from "../contexts/XrplWalletContext";
+import { useStellarWalletContext } from "../contexts/StellarWalletContext";
 
 export interface BurnParams {
   amount: string;
@@ -153,10 +153,10 @@ export function useChainWallet(chain: Chain): ChainWallet {
   );
 
   // ---------- XRPL (Crossmark / GemWallet) ----------
-  const xrplWallet = useXrplWallet();
+  const xrplWallet = useXrplWalletContext();
 
   // ---------- Stellar (Freighter) ----------
-  const stellarWallet = useStellarWallet();
+  const stellarWallet = useStellarWalletContext();
 
   // ---------- Select by chain ----------
   switch (chain) {

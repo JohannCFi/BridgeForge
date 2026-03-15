@@ -5,21 +5,19 @@ export function BeamsBackground() {
     <div
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100vw",
-        height: "100vh",
+        inset: 0,
         zIndex: 0,
+        overflow: "hidden",
         pointerEvents: "none",
       }}
     >
       <Beams
-        beamWidth={3}
+        beamWidth={3.4}
         beamHeight={30}
         beamNumber={20}
         lightColor="#ffffff"
         speed={2}
-        noiseIntensity={1.75}
+        noiseIntensity={0.6}
         scale={0.2}
         rotation={30}
       />

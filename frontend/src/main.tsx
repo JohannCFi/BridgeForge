@@ -15,6 +15,8 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 import "./index.css";
 import App from "./App";
 import { wagmiConfig } from "./config/wagmi";
+import { XrplWalletProvider } from "./contexts/XrplWalletContext";
+import { StellarWalletProvider } from "./contexts/StellarWalletContext";
 
 const queryClient = new QueryClient();
 const SOLANA_RPC = "https://api.devnet.solana.com";
@@ -47,7 +49,11 @@ function Providers({ children }: { children: React.ReactNode }) {
         >
           <ConnectionProvider endpoint={SOLANA_RPC}>
             <SolanaWalletProvider wallets={solanaWallets} autoConnect>
-              {children}
+              <XrplWalletProvider>
+                <StellarWalletProvider>
+                  {children}
+                </StellarWalletProvider>
+              </XrplWalletProvider>
             </SolanaWalletProvider>
           </ConnectionProvider>
         </RainbowKitProvider>

@@ -1,10 +1,30 @@
 import { useAccount } from "wagmi";
+import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
+import { useXrplWalletContext } from "../../contexts/XrplWalletContext";
+import { useStellarWalletContext } from "../../contexts/StellarWalletContext";
 import { useBalance } from "../../api/hooks";
 import { CHAINS } from "../../config/chains";
+import type { Chain } from "../../types";
+
+function useWalletAddress(chainId: Chain): string {
+  const { address: ethAddress, isConnected: ethConnected } = useAccount();
+  const solana = useSolanaWallet();
+  const xrpl = useXrplWalletContext();
+  const stellar = useStellarWalletContext();
+
+  switch (chainId) {
+    case "ethereum":
+      return ethConnected && ethAddress ? ethAddress : "";
+    case "solana":
+      return solana.connected && solana.publicKey ? solana.publicKey.toBase58() : "";
+    case "xrpl":
+      return xrpl.connected && xrpl.address ? xrpl.address : "";
+    case "stellar":
+      return stellar.connected && stellar.address ? stellar.address : "";
+  }
+}
 
 export function AssetsPanel() {
-  const { address, isConnected } = useAccount();
-
   return (
     <div className="w-full max-w-2xl mx-auto">
       <h1 className="text-xl font-semibold text-white mb-6">Assets</h1>
@@ -21,19 +41,12 @@ export function AssetsPanel() {
         {CHAINS.map((chain) => (
           <AssetRow
             key={chain.id}
-            chainId={chain.id}
+            chainId={chain.id as Chain}
             chainName={chain.name}
             chainIcon={chain.icon}
-            address={chain.id === "ethereum" && isConnected ? address! : ""}
           />
         ))}
       </div>
-
-      {!isConnected && (
-        <p className="text-xs text-zinc-600 mt-4 text-center">
-          Connect your wallet to view Ethereum balances
-        </p>
-      )}
     </div>
   );
 }
@@ -42,14 +55,13 @@ function AssetRow({
   chainId,
   chainName,
   chainIcon,
-  address,
 }: {
-  chainId: string;
+  chainId: Chain;
   chainName: string;
   chainIcon: string;
-  address: string;
 }) {
-  const { data } = useBalance(chainId as any, address);
+  const address = useWalletAddress(chainId);
+  const { data } = useBalance(chainId, address);
 
   return (
     <div className="grid grid-cols-3 px-5 py-4 border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors items-center">
