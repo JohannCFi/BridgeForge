@@ -270,9 +270,7 @@ export function BridgePanel() {
           disabled={!mainButtonEnabled}
           className={`w-full mt-5 py-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
             mainButtonEnabled
-              ? !sourceWallet.connected || !hasDestination
-                ? "bg-emerald-600 text-white hover:bg-emerald-500 cursor-pointer"
-                : "bg-white text-black hover:bg-zinc-200 cursor-pointer"
+              ? "bg-white text-black hover:bg-zinc-200 cursor-pointer"
               : "bg-zinc-800/50 text-zinc-600 cursor-not-allowed"
           }`}
         >
