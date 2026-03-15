@@ -31,7 +31,7 @@ export function AssetsPanel() {
 
       <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden">
         {/* Header */}
-        <div className="grid grid-cols-3 px-5 py-3 border-b border-white/[0.06] text-xs text-zinc-500 uppercase tracking-wider">
+        <div className="grid grid-cols-3 px-3 md:px-5 py-3 border-b border-white/[0.06] text-xs text-zinc-500 uppercase tracking-wider">
           <span>Network</span>
           <span>Token</span>
           <span className="text-right">Balance</span>
@@ -64,7 +64,7 @@ function AssetRow({
   const { data } = useBalance(chainId, address);
 
   return (
-    <div className="grid grid-cols-3 px-5 py-4 border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors items-center">
+    <div className="grid grid-cols-3 px-3 md:px-5 py-4 border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors items-center">
       <div className="flex items-center gap-3">
         <img src={chainIcon} alt={chainName} className="w-6 h-6" />
         <span className="text-sm text-white font-medium">{chainName}</span>

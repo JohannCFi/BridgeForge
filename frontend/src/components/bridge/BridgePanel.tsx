@@ -140,7 +140,7 @@ export function BridgePanel() {
       </div>
 
       {/* Card */}
-      <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-5">
+      <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-4 md:p-5">
         {/* Source (From) */}
         <div className="mb-1">
           <div className="flex items-center justify-between mb-3">

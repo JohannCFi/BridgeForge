@@ -34,7 +34,7 @@ export function ChainSelector({ value, onChange }: ChainSelectorProps) {
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-2 w-56 bg-zinc-900 border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50">
+        <div className="absolute top-full left-0 mt-2 w-full min-w-56 bg-zinc-900 border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-50">
           {options.map((chain) => (
             <button
               key={chain.id}

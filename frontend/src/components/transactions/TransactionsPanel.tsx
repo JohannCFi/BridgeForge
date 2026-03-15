@@ -55,7 +55,7 @@ function TransactionRow({ transfer }: { transfer: Transfer }) {
   const time = new Date(transfer.createdAt).toLocaleString();
 
   return (
-    <div className="px-5 py-4 border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+    <div className="px-3 md:px-5 py-4 border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
       <div className="flex items-center justify-between">
         {/* Route */}
         <div className="flex items-center gap-2">

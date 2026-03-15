@@ -37,7 +37,7 @@ export function WalletModal({ open, onClose, side, chain, onSelect }: WalletModa
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-sm bg-zinc-900 border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-sm mx-4 bg-zinc-900 border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4">
           <h2 className="text-lg font-semibold text-white">

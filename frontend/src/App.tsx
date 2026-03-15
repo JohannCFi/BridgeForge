@@ -24,7 +24,7 @@ function App() {
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* Main content */}
-      <main className="ml-60 min-h-screen flex items-start justify-center pt-20 px-8 relative z-10">
+      <main className="ml-0 md:ml-60 min-h-screen flex items-start justify-center pt-6 md:pt-20 px-4 md:px-8 pb-20 md:pb-0 relative z-10">
         {activeTab === "assets" && <AssetsPanel />}
         {activeTab === "bridge" && <BridgePanel />}
         {activeTab === "transactions" && <TransactionsPanel />}

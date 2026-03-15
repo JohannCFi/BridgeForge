@@ -13,18 +13,23 @@ export function AmountInput({ value, onChange, balance }: AmountInputProps) {
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <input
-        type="text"
-        inputMode="decimal"
-        placeholder="0"
-        value={value}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (/^\d*\.?\d*$/.test(v)) onChange(v);
-        }}
-        className="flex-1 bg-transparent text-2xl font-semibold text-white outline-none placeholder-zinc-600 min-w-0"
-      />
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          inputMode="decimal"
+          placeholder="0"
+          value={value}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (/^\d*\.?\d*$/.test(v)) onChange(v);
+          }}
+          className="flex-1 bg-transparent text-2xl font-semibold text-white outline-none placeholder-zinc-600 min-w-0"
+        />
+        <div className="flex items-center gap-1.5 ml-2 px-3 py-1.5 bg-zinc-800/60 rounded-lg">
+          <span className="text-sm font-medium text-zinc-300">tEURCV</span>
+        </div>
+      </div>
       <div className="flex items-center gap-1.5">
         {[25, 50].map((pct) => (
           <button
@@ -41,9 +46,6 @@ export function AmountInput({ value, onChange, balance }: AmountInputProps) {
         >
           MAX
         </button>
-        <div className="flex items-center gap-1.5 ml-2 px-3 py-1.5 bg-zinc-800/60 rounded-lg">
-          <span className="text-sm font-medium text-zinc-300">tEURCV</span>
-        </div>
       </div>
     </div>
   );
