@@ -121,7 +121,7 @@ export function BridgePanel() {
     if (sameAddress) return "Source and destination must differ";
     if (!amount || parseFloat(amount) <= 0) return "Enter an amount";
     if (insufficientBalance) return "Insufficient balance";
-    return "Bridge EURCV";
+    return "Bridge tEURCV";
   };
 
   const mainButtonEnabled =
@@ -150,7 +150,7 @@ export function BridgePanel() {
             <div className="flex items-center gap-2">
               {sourceWallet.connected && (
                 <span className="text-xs text-zinc-500">
-                  {parseFloat(balance).toFixed(2)} EURCV
+                  {parseFloat(balance).toFixed(2)} tEURCV
                 </span>
               )}
               <WalletBadge
@@ -196,7 +196,7 @@ export function BridgePanel() {
             <div className="flex items-center gap-2">
               {hasDestination && (
                 <span className="text-xs text-zinc-500">
-                  {parseFloat(destBalance).toFixed(2)} EURCV
+                  {parseFloat(destBalance).toFixed(2)} tEURCV
                 </span>
               )}
               <WalletBadge
@@ -226,7 +226,7 @@ export function BridgePanel() {
           {hasDestination && amount && parseFloat(amount) > 0 && (
             <div className="mt-3 flex items-center justify-between text-xs text-zinc-500 px-1">
               <span>You will receive</span>
-              <span className="text-white font-medium">~{amount} EURCV</span>
+              <span className="text-white font-medium">~{amount} tEURCV</span>
             </div>
           )}
         </div>

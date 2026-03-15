@@ -9,8 +9,8 @@ export function TrustlineWarning({ chain, errorMessage }: Props) {
   if (!errorMessage?.toLowerCase().includes("trustline")) return null;
 
   const instructions: Record<string, string> = {
-    xrpl: "Open your XRPL wallet and create a trustline for EURCV to the issuer address before bridging.",
-    stellar: "Open your Stellar wallet and add the EURCV asset from the issuer address before bridging.",
+    xrpl: "Open your XRPL wallet and create a trustline for tEURCV to the issuer address before bridging.",
+    stellar: "Open your Stellar wallet and add the tEURCV asset from the issuer address before bridging.",
   };
 
   return (
@@ -23,7 +23,7 @@ export function TrustlineWarning({ chain, errorMessage }: Props) {
         <div>
           <p className="text-amber-300 text-sm font-medium">Trustline Required</p>
           <p className="text-amber-200/70 text-xs mt-1">
-            {instructions[chain] || `A trustline for EURCV is required on ${chain}.`}
+            {instructions[chain] || `A trustline for tEURCV is required on ${chain}.`}
           </p>
         </div>
       </div>
