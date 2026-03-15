@@ -16,6 +16,20 @@ import { TransferProgress } from "./TransferProgress";
 import { ChainStatusBadge } from "../common/ChainStatusBadge";
 import { TrustlineWarning } from "../common/TrustlineWarning";
 
+function isValidAddress(chain: Chain, address: string): boolean {
+  if (!address) return true; // empty is not invalid, just incomplete
+  switch (chain) {
+    case "ethereum":
+      return /^0x[a-fA-F0-9]{40}$/.test(address);
+    case "solana":
+      return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+    case "xrpl":
+      return /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(address);
+    case "stellar":
+      return /^G[A-Z2-7]{55}$/.test(address);
+  }
+}
+
 export function BridgePanel() {
   const [sourceChain, setSourceChain] = useState<Chain>("ethereum");
   const [destChain, setDestChain] = useState<Chain>("solana");
@@ -99,6 +113,7 @@ export function BridgePanel() {
   const isProcessing = step === "registering" || step === "burning" || step === "confirming";
 
   const hasDestination = !!destAddress;
+  const invalidDestAddress = !!manualDestAddress && !destWallet.connected && !isValidAddress(destChain, manualDestAddress);
 
   const handleMainButton = () => {
     if (!sourceWallet.connected) {
@@ -118,6 +133,7 @@ export function BridgePanel() {
     }
     if (!sourceWallet.connected) return "Connect source wallet";
     if (!hasDestination) return "Enter destination address";
+    if (invalidDestAddress) return "Invalid address for this chain";
     if (sameAddress) return "Source and destination must differ";
     if (!amount || parseFloat(amount) <= 0) return "Enter an amount";
     if (insufficientBalance) return "Insufficient balance";
@@ -128,6 +144,7 @@ export function BridgePanel() {
     !sameChain &&
     !chainDown &&
     !isProcessing &&
+    !invalidDestAddress &&
     (!sourceWallet.connected ||
       (hasDestination && !sameAddress && !!amount && parseFloat(amount) > 0 && !insufficientBalance));
 
@@ -218,8 +235,17 @@ export function BridgePanel() {
                 value={manualDestAddress}
                 onChange={(e) => setManualDestAddress(e.target.value)}
                 placeholder="Or paste destination address..."
-                className="w-full bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors"
+                className={`w-full bg-black/40 border rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none transition-colors ${
+                  invalidDestAddress
+                    ? "border-red-500/50 focus:border-red-500/70"
+                    : "border-white/[0.06] focus:border-white/20"
+                }`}
               />
+              {invalidDestAddress && (
+                <p className="text-xs text-red-400 mt-1.5 px-1">
+                  Invalid address format for {destChain === "ethereum" ? "Ethereum" : destChain === "solana" ? "Solana" : destChain === "xrpl" ? "XRPL" : "Stellar"}
+                </p>
+              )}
             </div>
           )}
 
