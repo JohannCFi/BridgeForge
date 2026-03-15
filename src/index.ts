@@ -6,8 +6,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import path from "path";
-import { fileURLToPath } from "url";
+
 import { createAdapters } from "./chains/index.js";
 import { AttestationService } from "./services/attestation.js";
 import { TransferService } from "./services/transfer.js";
@@ -54,12 +53,9 @@ async function main() {
   app.use(express.json());
   app.use("/api", createRouter(transferService, chainStatusService, adapters));
 
-  // Serve frontend static files in production
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const frontendDist = path.join(__dirname, "..", "frontend", "dist");
-  app.use(express.static(frontendDist));
-  app.get("*", (_req, res) => {
-    res.sendFile(path.join(frontendDist, "index.html"));
+  // Health check root (frontend is deployed separately)
+  app.get("/", (_req, res) => {
+    res.json({ status: "ok", service: "bridgeforge-api" });
   });
 
   const server = app.listen(serverConfig.port, serverConfig.host, () => {

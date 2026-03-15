@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "npx -p prisma@6 prisma generate --schema=src/db/schema.prisma && tsc && cd frontend && npm install && npm run build",
+    "build": "npx -p prisma@6 prisma generate --schema=src/db/schema.prisma && tsc",
     "start": "npx -p prisma@6 prisma migrate deploy --schema=src/db/schema.prisma && node dist/index.js"
   },
   "devDependencies": {
