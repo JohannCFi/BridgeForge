@@ -13,7 +13,8 @@ export class MintQueue {
       defaultJobOptions: {
         attempts: 10,
         backoff: { type: "exponential", delay: 5000 },
-        removeOnComplete: false,
+        removeOnComplete: 100,
+        removeOnFail: 200,
       },
     });
 
