@@ -43,4 +43,6 @@ export interface ChainMeta {
   name: string;
   icon: string;
   explorerUrl: string;
+  rpcUrl: string;
+  tokenAddress: string;
 }

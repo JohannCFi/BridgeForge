@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
+import { getBalance } from "./balances";
 import type { Chain, CreateTransferRequest } from "../types";
 
 export function useBalance(chain: Chain | null, address: string) {
   return useQuery({
     queryKey: ["balance", chain, address],
-    queryFn: () => api.getBalance(chain!, address),
+    queryFn: () => getBalance(chain!, address),
     enabled: !!chain && !!address,
     refetchInterval: 15_000,
   });
