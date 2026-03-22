@@ -82,7 +82,7 @@ function AssetRow({
         <span className="text-sm text-white font-medium">{chainName}</span>
       </div>
       <div className="flex items-center gap-2">
-        <img src={tokenIcon} alt={tokenSymbol} className="w-5 h-5" />
+        <img src={tokenIcon} alt={tokenSymbol} className="w-5 h-5 object-contain" />
         <span className="text-sm text-zinc-400">{tokenSymbol}</span>
       </div>
       <span className="text-sm text-white text-right font-medium">

@@ -45,7 +45,7 @@ function Reveal({ children, delay = 0, className = "" }: { children: React.React
 const CHAINS = [
   { name: "Ethereum", icon: "/icons/ethereum.png", network: "Sepolia Testnet" },
   { name: "Solana", icon: "/icons/solana.svg", network: "Devnet" },
-  { name: "XRPL", icon: "/icons/xrpl.svg", network: "Testnet" },
+  { name: "XRPL", icon: "/icons/xrp.png", network: "Testnet" },
   { name: "Stellar", icon: "/icons/StellarLd.png", network: "Testnet" },
 ];
 

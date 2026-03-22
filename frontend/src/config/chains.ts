@@ -28,7 +28,7 @@ export const CHAINS: ChainMeta[] = [
   {
     id: "xrpl",
     name: "XRPL Testnet",
-    icon: "/icons/xrpl.svg",
+    icon: "/icons/xrp.png",
     explorerUrl: "https://testnet.xrpl.org",
     rpcUrl: "https://s.altnet.rippletest.net:51234",
     tokenAddress: "rMFnd1EECtCuf42uGd48AhFGwiF3rKmnu4",
