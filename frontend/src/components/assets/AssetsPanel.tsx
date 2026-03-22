@@ -48,7 +48,7 @@ export function AssetsPanel() {
               chainIcon={chain.icon}
               token={token.id}
               tokenSymbol={token.symbol}
-              tokenColor={token.color}
+              tokenIcon={token.icon}
             />
           ))
         )}
@@ -63,14 +63,14 @@ function AssetRow({
   chainIcon,
   token,
   tokenSymbol,
-  tokenColor,
+  tokenIcon,
 }: {
   chainId: Chain;
   chainName: string;
   chainIcon: string;
   token: Token;
   tokenSymbol: string;
-  tokenColor: string;
+  tokenIcon: string;
 }) {
   const address = useWalletAddress(chainId);
   const { data } = useBalance(chainId, address, token);
@@ -82,10 +82,7 @@ function AssetRow({
         <span className="text-sm text-white font-medium">{chainName}</span>
       </div>
       <div className="flex items-center gap-2">
-        <div
-          className="w-2 h-2 rounded-full"
-          style={{ backgroundColor: tokenColor }}
-        />
+        <img src={tokenIcon} alt={tokenSymbol} className="w-5 h-5" />
         <span className="text-sm text-zinc-400">{tokenSymbol}</span>
       </div>
       <span className="text-sm text-white text-right font-medium">

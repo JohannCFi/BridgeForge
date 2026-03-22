@@ -16,7 +16,6 @@ import { AmountInput } from "./AmountInput";
 import { WalletModal } from "./WalletModal";
 import { WalletBadge } from "./WalletBadge";
 import { TransferProgress } from "./TransferProgress";
-import { ChainStatusBadge } from "../common/ChainStatusBadge";
 import { TrustlineWarning } from "../common/TrustlineWarning";
 
 function isValidAddress(chain: Chain, address: string): boolean {
@@ -175,8 +174,8 @@ export function BridgePanel({ selectedToken, onTokenChange }: { selectedToken: T
         {/* Source (From) */}
         <div className="mb-1">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
-              From <ChainStatusBadge chain={sourceChain} />
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+              From
             </span>
             <div className="flex items-center gap-2">
               {sourceWallet.connected && (
@@ -222,8 +221,8 @@ export function BridgePanel({ selectedToken, onTokenChange }: { selectedToken: T
         {/* Destination (To) */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
-              To <ChainStatusBadge chain={destChain} />
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+              To
             </span>
             <div className="flex items-center gap-2">
               {hasDestination && (

@@ -7,6 +7,7 @@ export interface TokenMeta {
   fiatSymbol: string;
   fiatValue: string;
   color: string;
+  icon: string;
 }
 
 export const TOKENS: TokenMeta[] = [
@@ -17,6 +18,7 @@ export const TOKENS: TokenMeta[] = [
     fiatSymbol: "€",
     fiatValue: "1.00",
     color: "#3B82F6", // blue
+    icon: "/icons/EURCV.png",
   },
   {
     id: "tUSDCV",
@@ -25,6 +27,7 @@ export const TOKENS: TokenMeta[] = [
     fiatSymbol: "$",
     fiatValue: "1.00",
     color: "#10B981", // green
+    icon: "/icons/USDCV.png",
   },
 ];
 

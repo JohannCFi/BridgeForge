@@ -29,10 +29,7 @@ export function TokenSelector({ value, onChange }: TokenSelectorProps) {
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800/60 border border-white/[0.08] rounded-lg hover:bg-zinc-700/60 transition-colors cursor-pointer"
       >
-        <div
-          className="w-2.5 h-2.5 rounded-full"
-          style={{ backgroundColor: selected.color }}
-        />
+        <img src={selected.icon} alt={selected.symbol} className="w-3.5 h-3.5" />
         <span className="text-sm font-medium text-zinc-300">
           {selected.symbol}
         </span>
@@ -52,10 +49,7 @@ export function TokenSelector({ value, onChange }: TokenSelectorProps) {
                 token.id === value ? "bg-white/[0.03]" : ""
               }`}
             >
-              <div
-                className="w-3 h-3 rounded-full flex-shrink-0"
-                style={{ backgroundColor: token.color }}
-              />
+              <img src={token.icon} alt={token.symbol} className="w-4 h-4 flex-shrink-0" />
               <div>
                 <div className="text-sm font-medium text-white">
                   {token.symbol}
