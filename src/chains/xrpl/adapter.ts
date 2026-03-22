@@ -4,7 +4,7 @@
 // ============================================================
 
 import xrpl from "xrpl";
-import { ChainAdapter, BurnProof, MintResult, RefundResult } from "../../types/index.js";
+import { ChainAdapter, BurnProof, MintResult, RefundResult, TokenContext } from "../../types/index.js";
 import { chainConfigs, operatorKeys } from "../../config/index.js";
 
 // XRPL: currency codes > 3 chars must be 40-char hex (ASCII of "tEURCV" padded with zeros)
@@ -38,25 +38,31 @@ export class XrplAdapter implements ChainAdapter {
     }
   }
 
-  async executeMint(recipientAddress: string, amount: string): Promise<MintResult> {
+  async executeMint(recipientAddress: string, amount: string, tokenCtx?: TokenContext): Promise<MintResult> {
     try {
       await this.ensureConnected();
-      if (!this.issuerWallet) throw new Error("XRPL wallet not configured");
+
+      const issuer = tokenCtx?.tokenAddress || this.issuerAddress;
+      const currency = tokenCtx?.currencyCode || CURRENCY_CODE;
+
+      let wallet = this.issuerWallet;
+      if (tokenCtx?.operatorKey) {
+        wallet = xrpl.Wallet.fromSeed(tokenCtx.operatorKey);
+      }
+      if (!wallet) throw new Error("XRPL wallet not configured");
 
       const payment: xrpl.Payment = {
         TransactionType: "Payment",
-        Account: this.issuerAddress,
+        Account: issuer,
         Destination: recipientAddress,
         Amount: {
-          currency: CURRENCY_CODE,
-          issuer: this.issuerAddress,
+          currency,
+          issuer,
           value: amount,
         },
       };
 
-      const result = await this.client.submitAndWait(payment, {
-        wallet: this.issuerWallet,
-      });
+      const result = await this.client.submitAndWait(payment, { wallet });
 
       const txHash = result.result.hash;
       console.log(`[XRPL] Mint tx confirmed: ${txHash}`);
@@ -86,16 +92,14 @@ export class XrplAdapter implements ChainAdapter {
         txAmount !== null
       ) {
         const amount = txAmount as { currency: string; value: string };
-        if (amount.currency === CURRENCY_CODE) {
-          const meta = response.result.meta as { TransactionResult?: string } | undefined;
-          const confirmed = meta?.TransactionResult === "tesSUCCESS";
-          return {
-            valid: confirmed,
-            sender: txJson.Account,
-            amount: amount.value,
-            txHash,
-          };
-        }
+        const meta = response.result.meta as { TransactionResult?: string } | undefined;
+        const confirmed = meta?.TransactionResult === "tesSUCCESS";
+        return {
+          valid: confirmed,
+          sender: txJson.Account,
+          amount: amount.value,
+          txHash,
+        };
       }
 
       return { valid: false, sender: "", amount: "0", txHash };
@@ -105,13 +109,15 @@ export class XrplAdapter implements ChainAdapter {
     }
   }
 
-  async refund(senderAddress: string, amount: string): Promise<RefundResult> {
-    // Refund = issuer sends tokens back to original sender
-    return this.executeMint(senderAddress, amount);
+  async refund(senderAddress: string, amount: string, tokenCtx?: TokenContext): Promise<RefundResult> {
+    return this.executeMint(senderAddress, amount, tokenCtx);
   }
 
-  async getBalance(address: string): Promise<string> {
+  async getBalance(address: string, tokenCtx?: TokenContext): Promise<string> {
     await this.ensureConnected();
+
+    const issuer = tokenCtx?.tokenAddress || this.issuerAddress;
+    const currency = tokenCtx?.currencyCode || CURRENCY_CODE;
 
     const response = await this.client.request({
       command: "account_lines",
@@ -119,7 +125,7 @@ export class XrplAdapter implements ChainAdapter {
     });
 
     const line = response.result.lines.find(
-      (l) => l.currency === CURRENCY_CODE && l.account === this.issuerAddress
+      (l) => l.currency === currency && l.account === issuer
     );
 
     return line?.balance ?? "0";
@@ -135,15 +141,17 @@ export class XrplAdapter implements ChainAdapter {
     }
   }
 
-  async hasTrustline(address: string): Promise<boolean> {
+  async hasTrustline(address: string, tokenCtx?: TokenContext): Promise<boolean> {
     try {
       await this.ensureConnected();
+      const issuer = tokenCtx?.tokenAddress || this.issuerAddress;
+      const currency = tokenCtx?.currencyCode || CURRENCY_CODE;
       const response = await this.client.request({
         command: "account_lines",
         account: address,
       });
       return response.result.lines.some(
-        (l) => l.currency === CURRENCY_CODE && l.account === this.issuerAddress
+        (l) => l.currency === currency && l.account === issuer
       );
     } catch {
       return false;

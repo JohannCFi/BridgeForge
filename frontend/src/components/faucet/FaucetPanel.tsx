@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { Droplets, Loader2, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
-import type { Chain } from "../../types";
+import type { Chain, Token } from "../../types";
 import { CHAINS } from "../../config/chains";
 import { ChainSelector } from "../bridge/ChainSelector";
+import { TokenSelector } from "../bridge/TokenSelector";
 import { api } from "../../api/client";
 import { useChainWallet } from "../../hooks/useWallet";
 
-export function FaucetPanel() {
+export function FaucetPanel({ selectedToken, onTokenChange }: { selectedToken: Token; onTokenChange: (t: Token) => void }) {
   const [chain, setChain] = useState<Chain>("xrpl");
+  const token = selectedToken;
   const [address, setAddress] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ txHash: string; chain: Chain } | null>(null);
@@ -25,7 +27,7 @@ export function FaucetPanel() {
     setError(null);
 
     try {
-      const data = await api.faucet(chain, displayAddress);
+      const data = await api.faucet(chain, displayAddress, token);
       setResult({ txHash: data.txHash, chain: data.chain });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Mint failed");
@@ -47,8 +49,16 @@ export function FaucetPanel() {
 
       <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-5">
         <p className="text-sm text-zinc-400 mb-5">
-          Mint 1,000 tEURCV test tokens to any address. One request per address per minute.
+          Mint 1,000 test tokens to any address. One request per address per minute.
         </p>
+
+        {/* Token selector */}
+        <div className="mb-4">
+          <label className="text-xs text-zinc-500 uppercase tracking-wider mb-2 block">
+            Token
+          </label>
+          <TokenSelector value={token} onChange={(t) => { onTokenChange(t); setResult(null); setError(null); }} />
+        </div>
 
         {/* Chain selector */}
         <div className="mb-4">
@@ -83,8 +93,8 @@ export function FaucetPanel() {
           disabled={loading || !displayAddress}
           className={`w-full py-4 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
             loading || !displayAddress
-              ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-              : "bg-emerald-600 text-white hover:bg-emerald-500 cursor-pointer"
+              ? "bg-zinc-800/50 text-zinc-600 cursor-not-allowed"
+              : "bg-white text-black hover:bg-zinc-200 cursor-pointer"
           }`}
         >
           {loading ? (
@@ -95,7 +105,7 @@ export function FaucetPanel() {
           ) : (
             <>
               <Droplets size={16} />
-              Mint 1,000 tEURCV
+              Mint 1,000 {token}
             </>
           )}
         </button>

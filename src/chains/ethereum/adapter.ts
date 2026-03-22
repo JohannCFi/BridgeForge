@@ -4,7 +4,7 @@
 // ============================================================
 
 import { ethers } from "ethers";
-import { ChainAdapter, BurnProof, MintResult, RefundResult } from "../../types/index.js";
+import { ChainAdapter, BurnProof, MintResult, RefundResult, TokenContext } from "../../types/index.js";
 import { chainConfigs, operatorKeys } from "../../config/index.js";
 
 const BRIDGE_ABI = [
@@ -46,9 +46,11 @@ export class EthereumAdapter implements ChainAdapter {
     return this.tokenContract;
   }
 
-  async executeMint(recipientAddress: string, amount: string): Promise<MintResult> {
+  async executeMint(recipientAddress: string, amount: string, tokenCtx?: TokenContext): Promise<MintResult> {
     try {
-      const contract = this.ensureReady();
+      const contract = tokenCtx?.tokenAddress
+        ? new ethers.Contract(tokenCtx.tokenAddress, TOKEN_ABI, this.operatorWallet!)
+        : this.ensureReady();
       const parsedAmount = ethers.parseUnits(amount, 6);
       const tx = await contract.mint(recipientAddress, parsedAmount);
       const receipt = await tx.wait();
@@ -108,12 +110,14 @@ export class EthereumAdapter implements ChainAdapter {
     return { valid: false, sender: "", amount: "0", txHash };
   }
 
-  async refund(senderAddress: string, amount: string): Promise<RefundResult> {
-    return this.executeMint(senderAddress, amount);
+  async refund(senderAddress: string, amount: string, tokenCtx?: TokenContext): Promise<RefundResult> {
+    return this.executeMint(senderAddress, amount, tokenCtx);
   }
 
-  async getBalance(address: string): Promise<string> {
-    const contract = this.ensureReady();
+  async getBalance(address: string, tokenCtx?: TokenContext): Promise<string> {
+    const contract = tokenCtx?.tokenAddress
+      ? new ethers.Contract(tokenCtx.tokenAddress, TOKEN_ABI, this.provider)
+      : this.ensureReady();
     const balance = await contract.balanceOf(address);
     return ethers.formatUnits(balance, 6);
   }

@@ -9,7 +9,7 @@ import {
 } from "@stellar/freighter-api";
 import type { ChainWallet, BurnParams } from "../hooks/useWallet";
 
-const ASSET_CODE = "tEURCV";
+const DEFAULT_ASSET_CODE = "tEURCV";
 const NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
 const HORIZON_URL = "https://horizon-testnet.stellar.org";
 
@@ -62,7 +62,8 @@ export function StellarWalletProvider({ children }: { children: ReactNode }) {
 
       const StellarSdk = await import("@stellar/stellar-sdk");
       const account = new StellarSdk.Account(address, sequence);
-      const asset = new StellarSdk.Asset(ASSET_CODE, issuerPublicKey);
+      const assetCode = params.token || DEFAULT_ASSET_CODE;
+      const asset = new StellarSdk.Asset(assetCode, issuerPublicKey);
 
       const transaction = new StellarSdk.TransactionBuilder(account, {
         fee: StellarSdk.BASE_FEE,

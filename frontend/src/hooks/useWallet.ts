@@ -16,6 +16,8 @@ import { useStellarWalletContext } from "../contexts/StellarWalletContext";
 export interface BurnParams {
   amount: string;
   tokenAddress: string;
+  /** Selected token ("tEURCV" | "tUSDCV") */
+  token?: string;
   /** Destination chain (encoded in BridgeBurn event for Ethereum) */
   destinationChain?: string;
   /** Recipient address on destination chain */

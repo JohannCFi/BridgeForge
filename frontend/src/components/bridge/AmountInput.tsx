@@ -2,9 +2,10 @@ interface AmountInputProps {
   value: string;
   onChange: (val: string) => void;
   balance: string;
+  tokenSymbol?: string;
 }
 
-export function AmountInput({ value, onChange, balance }: AmountInputProps) {
+export function AmountInput({ value, onChange, balance, tokenSymbol = "tEURCV" }: AmountInputProps) {
   const bal = parseFloat(balance) || 0;
 
   const setPercent = (pct: number) => {
@@ -27,7 +28,7 @@ export function AmountInput({ value, onChange, balance }: AmountInputProps) {
           className="flex-1 bg-transparent text-2xl font-semibold text-white outline-none placeholder-zinc-600 min-w-0"
         />
         <div className="flex items-center gap-1.5 ml-2 px-3 py-1.5 bg-zinc-800/60 rounded-lg">
-          <span className="text-sm font-medium text-zinc-300">tEURCV</span>
+          <span className="text-sm font-medium text-zinc-300">{tokenSymbol}</span>
         </div>
       </div>
       <div className="flex items-center gap-1.5">

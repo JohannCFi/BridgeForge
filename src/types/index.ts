@@ -6,6 +6,10 @@
 /** Supported blockchain networks */
 export type Chain = "ethereum" | "solana" | "xrpl" | "stellar";
 
+/** Supported tokens */
+export type Token = "tEURCV" | "tUSDCV";
+export const SUPPORTED_TOKENS: Token[] = ["tEURCV", "tUSDCV"];
+
 /** Transfer status lifecycle */
 export type TransferStatus =
   | "pending"
@@ -62,6 +66,14 @@ export interface RefundResult {
   txHash: string;
 }
 
+/** Token-specific context passed to adapter methods */
+export interface TokenContext {
+  tokenAddress: string;
+  currencyCode?: string;  // XRPL 40-char hex currency code
+  assetCode?: string;     // Stellar asset code (e.g. "tUSDCV")
+  operatorKey?: string;   // Override operator key (XRPL seed / Stellar secret)
+}
+
 /**
  * Chain adapter interface – each blockchain implements this.
  * This is the abstraction layer that hides chain-specific logic.
@@ -69,11 +81,11 @@ export interface RefundResult {
 export interface ChainAdapter {
   chain: Chain;
   verifyBurn(txHash: string): Promise<BurnProof>;
-  executeMint(recipientAddress: string, amount: string): Promise<MintResult>;
-  refund(senderAddress: string, amount: string): Promise<RefundResult>;
-  getBalance(address: string): Promise<string>;
+  executeMint(recipientAddress: string, amount: string, tokenCtx?: TokenContext): Promise<MintResult>;
+  refund(senderAddress: string, amount: string, tokenCtx?: TokenContext): Promise<RefundResult>;
+  getBalance(address: string, tokenCtx?: TokenContext): Promise<string>;
   isHealthy(): Promise<boolean>;
-  hasTrustline?(address: string): Promise<boolean>;
+  hasTrustline?(address: string, tokenCtx?: TokenContext): Promise<boolean>;
 }
 
 /** API response wrapper */

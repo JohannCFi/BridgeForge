@@ -37,6 +37,7 @@ model Transfer {
   mintConfirmedAt DateTime?      @map("mint_confirmed_at") @db.Timestamptz
 
   amount          Decimal        @db.Decimal(20, 6)
+  token           String         @default("tEURCV") @db.VarChar(10)
 
   attestation     Bytes?
   messageHash     String?        @db.VarChar(66) @map("message_hash")
@@ -52,6 +53,7 @@ model Transfer {
   nonce           UsedNonce?
 
   @@index([status])
+  @@index([token])
   @@index([sourceAddress, sourceChain], name: "idx_transfers_source")
   @@index([destAddress, destChain], name: "idx_transfers_dest")
   @@map("transfers")

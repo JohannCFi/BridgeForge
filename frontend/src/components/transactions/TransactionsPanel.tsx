@@ -76,7 +76,7 @@ function TransactionRow({ transfer }: { transfer: Transfer }) {
 
         {/* Amount */}
         <span className="text-sm text-white font-medium">
-          {transfer.amount} tEURCV
+          {transfer.amount} {transfer.token || "tEURCV"}
         </span>
       </div>
 

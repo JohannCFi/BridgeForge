@@ -14,7 +14,7 @@ import {
   getAssociatedTokenAddress,
   getAccount,
 } from "@solana/spl-token";
-import { ChainAdapter, BurnProof, MintResult, RefundResult } from "../../types/index.js";
+import { ChainAdapter, BurnProof, MintResult, RefundResult, TokenContext } from "../../types/index.js";
 import { chainConfigs, operatorKeys } from "../../config/index.js";
 
 export class SolanaAdapter implements ChainAdapter {
@@ -40,17 +40,22 @@ export class SolanaAdapter implements ChainAdapter {
     console.log("[Solana] Adapter initialized");
   }
 
-  async executeMint(recipientAddress: string, amount: string): Promise<MintResult> {
+  async executeMint(recipientAddress: string, amount: string, tokenCtx?: TokenContext): Promise<MintResult> {
     try {
-      if (!this.operatorKeypair || !this.mintAddress) {
-        throw new Error("[Solana] Wallet or mint not configured");
+      if (!this.operatorKeypair) {
+        throw new Error("[Solana] Wallet not configured");
       }
+
+      const mint = tokenCtx?.tokenAddress
+        ? new PublicKey(tokenCtx.tokenAddress)
+        : this.mintAddress;
+      if (!mint) throw new Error("[Solana] Mint not configured");
 
       const recipient = new PublicKey(recipientAddress);
       const ata = await getOrCreateAssociatedTokenAccount(
         this.connection,
         this.operatorKeypair,
-        this.mintAddress,
+        mint,
         recipient
       );
 
@@ -58,7 +63,7 @@ export class SolanaAdapter implements ChainAdapter {
       const txSig = await mintTo(
         this.connection,
         this.operatorKeypair,
-        this.mintAddress,
+        mint,
         ata.address,
         this.operatorKeypair,
         parsedAmount
@@ -124,15 +129,18 @@ export class SolanaAdapter implements ChainAdapter {
     return { valid: false, sender: "", amount: "0", txHash };
   }
 
-  async refund(senderAddress: string, amount: string): Promise<RefundResult> {
-    return this.executeMint(senderAddress, amount);
+  async refund(senderAddress: string, amount: string, tokenCtx?: TokenContext): Promise<RefundResult> {
+    return this.executeMint(senderAddress, amount, tokenCtx);
   }
 
-  async getBalance(address: string): Promise<string> {
-    if (!this.mintAddress) throw new Error("[Solana] Mint not configured");
+  async getBalance(address: string, tokenCtx?: TokenContext): Promise<string> {
+    const mint = tokenCtx?.tokenAddress
+      ? new PublicKey(tokenCtx.tokenAddress)
+      : this.mintAddress;
+    if (!mint) throw new Error("[Solana] Mint not configured");
 
     const owner = new PublicKey(address);
-    const ata = await getAssociatedTokenAddress(this.mintAddress, owner);
+    const ata = await getAssociatedTokenAddress(mint, owner);
 
     try {
       const account = await getAccount(this.connection, ata);

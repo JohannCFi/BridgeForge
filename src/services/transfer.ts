@@ -1,6 +1,7 @@
 import prisma from "../db/client.js";
-import { Chain, DOMAIN_IDS, BridgeMessage, ChainAdapter } from "../types/index.js";
+import { Chain, Token, DOMAIN_IDS, BridgeMessage, ChainAdapter } from "../types/index.js";
 import { AttestationService } from "./attestation.js";
+import { getTokenContext } from "../config/index.js";
 import { Decimal } from "@prisma/client/runtime/library";
 import { ethers } from "ethers";
 
@@ -17,7 +18,10 @@ export class TransferService {
     sourceAddress: string;
     destAddress: string;
     amount: string;
+    token?: Token;
   }) {
+    const token: Token = params.token || "tEURCV";
+
     // Pre-checks
     const sourceAdapter = this.adapters[params.sourceChain];
     const destAdapter = this.adapters[params.destChain];
@@ -29,6 +33,7 @@ export class TransferService {
       return prisma.transfer.create({
         data: {
           ...this.mapParams(params),
+          token,
           status: "rejected",
           errorLog: `Chain unavailable: ${!sourceHealthy ? params.sourceChain : params.destChain}`,
         },
@@ -37,20 +42,22 @@ export class TransferService {
 
     // Check trustline for XRPL/Stellar destinations
     if (destAdapter.hasTrustline) {
-      const hasTrust = await destAdapter.hasTrustline(params.destAddress);
+      const tokenCtx = getTokenContext(token, params.destChain);
+      const hasTrust = await destAdapter.hasTrustline(params.destAddress, tokenCtx);
       if (!hasTrust) {
         return prisma.transfer.create({
           data: {
             ...this.mapParams(params),
+            token,
             status: "rejected",
-            errorLog: "Recipient has no trustline for EURCV on destination chain",
+            errorLog: `Recipient has no trustline for ${token} on destination chain`,
           },
         });
       }
     }
 
     return prisma.transfer.create({
-      data: { ...this.mapParams(params), status: "ready" },
+      data: { ...this.mapParams(params), token, status: "ready" },
     });
   }
 
@@ -104,7 +111,9 @@ export class TransferService {
       sender: senderBytes32,
       recipient: recipientBytes32,
       amount: transfer.amount.toString(),
-      burnTxHash: ethers.zeroPadValue(burnTxHash.startsWith("0x") ? burnTxHash : `0x${burnTxHash}`, 32),
+      burnTxHash: burnTxHash.startsWith("0x")
+        ? ethers.zeroPadValue(burnTxHash, 32)
+        : ethers.keccak256(ethers.toUtf8Bytes(burnTxHash)),
     };
 
     const signature = await this.attestation.signMessage(message);

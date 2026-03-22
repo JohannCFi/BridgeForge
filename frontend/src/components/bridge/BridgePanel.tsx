@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowDownUp, HelpCircle, Loader2 } from "lucide-react";
-import type { Chain } from "../../types";
+import type { Chain, Token } from "../../types";
 import {
   useBalance,
   useChainConfig,
@@ -8,7 +8,10 @@ import {
 } from "../../api/hooks";
 import { useChainWallet } from "../../hooks/useWallet";
 import { useBridge } from "../../hooks/useBridge";
+import { getToken } from "../../config/tokens";
+import { CHAINS } from "../../config/chains";
 import { ChainSelector } from "./ChainSelector";
+import { TokenSelector } from "./TokenSelector";
 import { AmountInput } from "./AmountInput";
 import { WalletModal } from "./WalletModal";
 import { WalletBadge } from "./WalletBadge";
@@ -30,7 +33,7 @@ function isValidAddress(chain: Chain, address: string): boolean {
   }
 }
 
-export function BridgePanel() {
+export function BridgePanel({ selectedToken, onTokenChange }: { selectedToken: Token; onTokenChange: (t: Token) => void }) {
   const [sourceChain, setSourceChain] = useState<Chain>("ethereum");
   const [destChain, setDestChain] = useState<Chain>("solana");
   const [amount, setAmount] = useState("");
@@ -46,19 +49,23 @@ export function BridgePanel() {
 
   const { bridge, transferId, step, error, reset } = useBridge();
 
+  const tokenMeta = getToken(selectedToken);
+
   // Effective destination address: wallet or manual input
   const destAddress = destWallet.address || manualDestAddress;
 
-  // Balances
+  // Balances (token-aware)
   const { data: balanceData } = useBalance(
     sourceChain,
-    sourceWallet.address || ""
+    sourceWallet.address || "",
+    selectedToken
   );
   const balance = balanceData?.balance ?? "0";
 
   const { data: destBalanceData } = useBalance(
     destChain,
-    destAddress || ""
+    destAddress || "",
+    selectedToken
   );
   const destBalance = destBalanceData?.balance ?? "0";
 
@@ -86,13 +93,17 @@ export function BridgePanel() {
   const handleBridge = async () => {
     if (!sourceWallet.address || !destAddress || !amount || !chainConfig) return;
 
-    const tokenAddress = chainConfig[sourceChain].tokenAddress;
+    // Get the right token address for the source chain
+    const chainMeta = CHAINS.find((c) => c.id === sourceChain);
+    const tokenAddress = chainMeta?.tokenAddresses[selectedToken] || chainConfig[sourceChain]?.tokenAddress || "";
+
     await bridge({
       sourceChain,
       destChain,
       sourceAddress: sourceWallet.address,
       destAddress,
       amount,
+      token: selectedToken,
       signBurn: sourceWallet.signBurn,
       tokenAddress,
     });
@@ -137,7 +148,7 @@ export function BridgePanel() {
     if (sameAddress) return "Source and destination must differ";
     if (!amount || parseFloat(amount) <= 0) return "Enter an amount";
     if (insufficientBalance) return "Insufficient balance";
-    return "Bridge tEURCV";
+    return `Bridge ${selectedToken}`;
   };
 
   const mainButtonEnabled =
@@ -151,9 +162,12 @@ export function BridgePanel() {
   return (
     <div className="w-full max-w-lg mx-auto">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-6">
-        <h1 className="text-xl font-semibold text-white">Bridge</h1>
-        <HelpCircle size={16} className="text-zinc-500" />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-semibold text-white">Bridge</h1>
+          <HelpCircle size={16} className="text-zinc-500" />
+        </div>
+        <TokenSelector value={selectedToken} onChange={onTokenChange} />
       </div>
 
       {/* Card */}
@@ -167,7 +181,7 @@ export function BridgePanel() {
             <div className="flex items-center gap-2">
               {sourceWallet.connected && (
                 <span className="text-xs text-zinc-500">
-                  {parseFloat(balance).toFixed(2)} tEURCV
+                  {parseFloat(balance).toFixed(2)} {selectedToken}
                 </span>
               )}
               <WalletBadge
@@ -189,6 +203,7 @@ export function BridgePanel() {
                 value={amount}
                 onChange={setAmount}
                 balance={balance}
+                tokenSymbol={selectedToken}
               />
             </div>
           )}
@@ -213,7 +228,7 @@ export function BridgePanel() {
             <div className="flex items-center gap-2">
               {hasDestination && (
                 <span className="text-xs text-zinc-500">
-                  {parseFloat(destBalance).toFixed(2)} tEURCV
+                  {parseFloat(destBalance).toFixed(2)} {selectedToken}
                 </span>
               )}
               <WalletBadge
@@ -252,10 +267,17 @@ export function BridgePanel() {
           {hasDestination && amount && parseFloat(amount) > 0 && (
             <div className="mt-3 flex items-center justify-between text-xs text-zinc-500 px-1">
               <span>You will receive</span>
-              <span className="text-white font-medium">~{amount} tEURCV</span>
+              <span className="text-white font-medium">~{amount} {selectedToken}</span>
             </div>
           )}
         </div>
+
+        {/* Exchange rate info */}
+        {amount && parseFloat(amount) > 0 && (
+          <div className="mt-2 text-xs text-zinc-600 px-1">
+            1 {selectedToken} = {tokenMeta.fiatSymbol}{tokenMeta.fiatValue}
+          </div>
+        )}
 
         {/* Trustline warning for XRPL/Stellar */}
         {error && (destChain === "xrpl" || destChain === "stellar") && (

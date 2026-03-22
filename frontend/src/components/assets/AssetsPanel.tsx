@@ -4,7 +4,8 @@ import { useXrplWalletContext } from "../../contexts/XrplWalletContext";
 import { useStellarWalletContext } from "../../contexts/StellarWalletContext";
 import { useBalance } from "../../api/hooks";
 import { CHAINS } from "../../config/chains";
-import type { Chain } from "../../types";
+import { TOKENS } from "../../config/tokens";
+import type { Chain, Token } from "../../types";
 
 function useWalletAddress(chainId: Chain): string {
   const { address: ethAddress, isConnected: ethConnected } = useAccount();
@@ -37,15 +38,20 @@ export function AssetsPanel() {
           <span className="text-right">Balance</span>
         </div>
 
-        {/* Rows */}
-        {CHAINS.map((chain) => (
-          <AssetRow
-            key={chain.id}
-            chainId={chain.id as Chain}
-            chainName={chain.name}
-            chainIcon={chain.icon}
-          />
-        ))}
+        {/* Rows: each chain x each token */}
+        {CHAINS.map((chain) =>
+          TOKENS.map((token) => (
+            <AssetRow
+              key={`${chain.id}-${token.id}`}
+              chainId={chain.id as Chain}
+              chainName={chain.name}
+              chainIcon={chain.icon}
+              token={token.id}
+              tokenSymbol={token.symbol}
+              tokenColor={token.color}
+            />
+          ))
+        )}
       </div>
     </div>
   );
@@ -55,13 +61,19 @@ function AssetRow({
   chainId,
   chainName,
   chainIcon,
+  token,
+  tokenSymbol,
+  tokenColor,
 }: {
   chainId: Chain;
   chainName: string;
   chainIcon: string;
+  token: Token;
+  tokenSymbol: string;
+  tokenColor: string;
 }) {
   const address = useWalletAddress(chainId);
-  const { data } = useBalance(chainId, address);
+  const { data } = useBalance(chainId, address, token);
 
   return (
     <div className="grid grid-cols-3 px-3 md:px-5 py-4 border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors items-center">
@@ -69,7 +81,13 @@ function AssetRow({
         <img src={chainIcon} alt={chainName} className="w-6 h-6" />
         <span className="text-sm text-white font-medium">{chainName}</span>
       </div>
-      <span className="text-sm text-zinc-400">tEURCV</span>
+      <div className="flex items-center gap-2">
+        <div
+          className="w-2 h-2 rounded-full"
+          style={{ backgroundColor: tokenColor }}
+        />
+        <span className="text-sm text-zinc-400">{tokenSymbol}</span>
+      </div>
       <span className="text-sm text-white text-right font-medium">
         {data?.balance ?? "--"}
       </span>

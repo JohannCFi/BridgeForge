@@ -1,4 +1,4 @@
-import type { Chain, Transfer, CreateTransferRequest } from "../types";
+import type { Chain, Token, Transfer, CreateTransferRequest } from "../types";
 
 const BASE = `${import.meta.env.VITE_API_URL || ""}/api/v1`;
 
@@ -16,9 +16,9 @@ export const api = {
   /** Get chain health statuses */
   getHealth: () => request<Record<Chain, boolean>>("/health"),
 
-  getBalance: (chain: Chain, address: string) =>
-    request<{ chain: Chain; address: string; balance: string }>(
-      `/balance/${chain}/${address}`
+  getBalance: (chain: Chain, address: string, token: Token = "tEURCV") =>
+    request<{ chain: Chain; address: string; balance: string; token: Token }>(
+      `/balance/${chain}/${address}?token=${token}`
     ),
 
   /** Register a transfer intent. Returns transfer in ready or rejected status. */
@@ -47,12 +47,12 @@ export const api = {
 
   /** Get chain configs (token addresses) */
   getConfig: () =>
-    request<Record<Chain, { tokenAddress: string }>>("/config"),
+    request<Record<Chain, { tokenAddress: string }> & { tokens: Record<Token, Record<Chain, { tokenAddress: string }>> }>("/config"),
 
-  /** Faucet: mint 1000 tEURCV to an address */
-  faucet: (chain: Chain, address: string) =>
-    request<{ chain: Chain; address: string; amount: string; txHash: string }>("/faucet", {
+  /** Faucet: mint 1000 test tokens to an address */
+  faucet: (chain: Chain, address: string, token: Token = "tEURCV") =>
+    request<{ chain: Chain; address: string; amount: string; txHash: string; token: Token }>("/faucet", {
       method: "POST",
-      body: JSON.stringify({ chain, address }),
+      body: JSON.stringify({ chain, address, token }),
     }),
 };

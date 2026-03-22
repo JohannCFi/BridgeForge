@@ -1,5 +1,8 @@
 export type Chain = "ethereum" | "solana" | "xrpl" | "stellar";
 
+export type Token = "tEURCV" | "tUSDCV";
+export const SUPPORTED_TOKENS: Token[] = ["tEURCV", "tUSDCV"];
+
 export type TransferStatus =
   | "pending"
   | "rejected"
@@ -20,6 +23,7 @@ export interface CreateTransferRequest {
   sourceAddress: string;
   destAddress: string;
   amount: string;
+  token?: Token;
 }
 
 export interface Transfer {
@@ -30,6 +34,7 @@ export interface Transfer {
   destChain: Chain;
   destAddress: string;
   amount: string;
+  token: Token;
   burnTxHash?: string;
   mintTxHash?: string;
   refundTxHash?: string;
@@ -45,4 +50,5 @@ export interface ChainMeta {
   explorerUrl: string;
   rpcUrl: string;
   tokenAddress: string;
+  tokenAddresses: Record<Token, string>;
 }

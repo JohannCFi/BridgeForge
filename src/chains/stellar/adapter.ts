@@ -4,7 +4,7 @@
 // ============================================================
 
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { ChainAdapter, BurnProof, MintResult, RefundResult } from "../../types/index.js";
+import { ChainAdapter, BurnProof, MintResult, RefundResult, TokenContext } from "../../types/index.js";
 import { chainConfigs, operatorKeys } from "../../config/index.js";
 
 const ASSET_CODE = "tEURCV";
@@ -33,13 +33,28 @@ export class StellarAdapter implements ChainAdapter {
     }
   }
 
-  async executeMint(recipientAddress: string, amount: string): Promise<MintResult> {
+  async executeMint(recipientAddress: string, amount: string, tokenCtx?: TokenContext): Promise<MintResult> {
     try {
-      if (!this.issuerKeypair || !this.asset) {
+      let keypair = this.issuerKeypair;
+      let asset = this.asset;
+
+      if (tokenCtx?.tokenAddress) {
+        // Use token-specific asset (handles same-issuer multi-token case)
+        asset = new StellarSdk.Asset(
+          tokenCtx.assetCode || ASSET_CODE,
+          tokenCtx.tokenAddress
+        );
+        // Load operator key override if provided
+        if (tokenCtx.operatorKey) {
+          keypair = StellarSdk.Keypair.fromSecret(tokenCtx.operatorKey);
+        }
+      }
+
+      if (!keypair || !asset) {
         throw new Error("[Stellar] Wallet not configured");
       }
 
-      const account = await this.server.loadAccount(this.issuerKeypair.publicKey());
+      const account = await this.server.loadAccount(keypair.publicKey());
       const transaction = new StellarSdk.TransactionBuilder(account, {
         fee: StellarSdk.BASE_FEE,
         networkPassphrase: StellarSdk.Networks.TESTNET,
@@ -47,14 +62,14 @@ export class StellarAdapter implements ChainAdapter {
         .addOperation(
           StellarSdk.Operation.payment({
             destination: recipientAddress,
-            asset: this.asset,
-            amount: amount,
+            asset,
+            amount,
           })
         )
         .setTimeout(30)
         .build();
 
-      transaction.sign(this.issuerKeypair);
+      transaction.sign(keypair);
       const result = await this.server.submitTransaction(transaction);
       const txHash = result.hash;
       console.log(`[Stellar] Mint tx confirmed: ${txHash}`);
@@ -78,7 +93,6 @@ export class StellarAdapter implements ChainAdapter {
         const p = op as unknown as Record<string, unknown>;
         if (
           p.type === "payment" &&
-          p.asset_code === ASSET_CODE &&
           p.asset_issuer === this.issuerPublicKey &&
           p.to === this.issuerPublicKey
         ) {
@@ -98,18 +112,20 @@ export class StellarAdapter implements ChainAdapter {
     }
   }
 
-  async refund(senderAddress: string, amount: string): Promise<RefundResult> {
-    return this.executeMint(senderAddress, amount);
+  async refund(senderAddress: string, amount: string, tokenCtx?: TokenContext): Promise<RefundResult> {
+    return this.executeMint(senderAddress, amount, tokenCtx);
   }
 
-  async getBalance(address: string): Promise<string> {
+  async getBalance(address: string, tokenCtx?: TokenContext): Promise<string> {
     try {
+      const issuer = tokenCtx?.tokenAddress || this.issuerPublicKey;
+      const code = tokenCtx?.assetCode || ASSET_CODE;
       const account = await this.server.loadAccount(address);
       const balance = account.balances.find(
         (b) =>
           b.asset_type !== "native" &&
-          (b as StellarSdk.Horizon.HorizonApi.BalanceLineAsset).asset_code === ASSET_CODE &&
-          (b as StellarSdk.Horizon.HorizonApi.BalanceLineAsset).asset_issuer === this.issuerPublicKey
+          (b as StellarSdk.Horizon.HorizonApi.BalanceLineAsset).asset_code === code &&
+          (b as StellarSdk.Horizon.HorizonApi.BalanceLineAsset).asset_issuer === issuer
       );
       return balance ? balance.balance : "0";
     } catch {
@@ -126,14 +142,16 @@ export class StellarAdapter implements ChainAdapter {
     }
   }
 
-  async hasTrustline(address: string): Promise<boolean> {
+  async hasTrustline(address: string, tokenCtx?: TokenContext): Promise<boolean> {
     try {
+      const issuer = tokenCtx?.tokenAddress || this.issuerPublicKey;
+      const code = tokenCtx?.assetCode || ASSET_CODE;
       const account = await this.server.loadAccount(address);
       return account.balances.some(
         (b) =>
           b.asset_type !== "native" &&
-          (b as StellarSdk.Horizon.HorizonApi.BalanceLineAsset).asset_code === ASSET_CODE &&
-          (b as StellarSdk.Horizon.HorizonApi.BalanceLineAsset).asset_issuer === this.issuerPublicKey
+          (b as StellarSdk.Horizon.HorizonApi.BalanceLineAsset).asset_code === code &&
+          (b as StellarSdk.Horizon.HorizonApi.BalanceLineAsset).asset_issuer === issuer
       );
     } catch {
       return false;

@@ -43,10 +43,10 @@ function Reveal({ children, delay = 0, className = "" }: { children: React.React
 /* ───────────── data ───────────── */
 
 const CHAINS = [
-  { name: "Ethereum", icon: "/icons/ethereum.svg", network: "Sepolia Testnet" },
+  { name: "Ethereum", icon: "/icons/ethereum.png", network: "Sepolia Testnet" },
   { name: "Solana", icon: "/icons/solana.svg", network: "Devnet" },
   { name: "XRPL", icon: "/icons/xrpl.svg", network: "Testnet" },
-  { name: "Stellar", icon: "/icons/stellar.svg", network: "Testnet" },
+  { name: "Stellar", icon: "/icons/Stellar.png", network: "Testnet" },
 ];
 
 const KEY_FEATURES = [

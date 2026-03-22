@@ -6,9 +6,9 @@
 import { Router, Request, Response } from "express";
 import { TransferService } from "../services/transfer.js";
 import { ChainStatusService } from "../services/chain-status.js";
-import { Chain, ChainAdapter, ApiResponse } from "../types/index.js";
-import { createTransferSchema, confirmBurnSchema, transfersQuerySchema, faucetSchema } from "./validation.js";
-import { chainConfigs } from "../config/index.js";
+import { Chain, Token, ChainAdapter, ApiResponse } from "../types/index.js";
+import { createTransferSchema, confirmBurnSchema, transfersQuerySchema, faucetSchema, balanceQuerySchema } from "./validation.js";
+import { chainConfigs, tokenConfigs, getTokenContext } from "../config/index.js";
 
 export function createRouter(
   transferService: TransferService,
@@ -101,7 +101,8 @@ export function createRouter(
 
   /**
    * GET /api/v1/balance/:chain/:address
-   * Get EURCV balance for an address on a specific chain.
+   * Get token balance for an address on a specific chain.
+   * Query: ?token=tEURCV|tUSDCV (default: tEURCV)
    */
   router.get("/v1/balance/:chain/:address", async (req: Request, res: Response) => {
     try {
@@ -112,8 +113,19 @@ export function createRouter(
         return;
       }
 
-      const balance = await adapter.getBalance(req.params.address as string);
-      res.json({ success: true, data: { chain, address: req.params.address, balance } });
+      const parsed = balanceQuerySchema.safeParse(req.query);
+      const token = (parsed.success ? parsed.data.token : "tEURCV") as Token;
+      const tokenCtx = getTokenContext(token, chain);
+
+      // If no token address is configured for this token+chain, return 0 instead of
+      // letting adapters fall back to the default (tEURCV) address
+      if (!tokenCtx.tokenAddress) {
+        res.json({ success: true, data: { chain, address: req.params.address, balance: "0", token } });
+        return;
+      }
+
+      const balance = await adapter.getBalance(req.params.address as string, tokenCtx);
+      res.json({ success: true, data: { chain, address: req.params.address, balance, token } });
     } catch (error) {
       res.status(500).json({
         success: false,
@@ -124,18 +136,28 @@ export function createRouter(
 
   /**
    * GET /api/v1/config
-   * Returns token addresses for each chain.
+   * Returns token addresses for each chain, for all tokens.
    */
   router.get("/v1/config", (_req: Request, res: Response) => {
-    const config = Object.fromEntries(
+    // Return both legacy format and new multi-token format
+    const legacy = Object.fromEntries(
       Object.entries(chainConfigs).map(([chain, cfg]) => [chain, { tokenAddress: cfg.tokenAddress }])
     );
-    res.json({ success: true, data: config });
+    const tokens = Object.fromEntries(
+      Object.entries(tokenConfigs).map(([token, chains]) => [
+        token,
+        Object.fromEntries(
+          Object.entries(chains).map(([chain, cfg]) => [chain, { tokenAddress: cfg.tokenAddress }])
+        ),
+      ])
+    );
+    res.json({ success: true, data: { ...legacy, tokens } });
   });
 
   /**
    * POST /api/v1/faucet
-   * Mint 1000 tEURCV to an address on any chain (testnet only).
+   * Mint 1000 test tokens to an address on any chain (testnet only).
+   * Body: { chain, address, token? } (token defaults to tEURCV)
    */
   const faucetCooldowns = new Map<string, number>();
   const FAUCET_AMOUNT = "1000";
@@ -149,15 +171,15 @@ export function createRouter(
         return;
       }
 
-      const { chain, address } = parsed.data;
+      const { chain, address, token } = parsed.data;
       const adapter = adapters[chain];
       if (!adapter) {
         res.status(400).json({ success: false, error: `Invalid chain: ${chain}` });
         return;
       }
 
-      // Rate limit: 1 request per address+chain per 60s
-      const key = `${chain}:${address}`;
+      // Rate limit: 1 request per address+chain+token per 60s
+      const key = `${chain}:${address}:${token}`;
       const lastMint = faucetCooldowns.get(key);
       if (lastMint && Date.now() - lastMint < FAUCET_COOLDOWN_MS) {
         const remaining = Math.ceil((FAUCET_COOLDOWN_MS - (Date.now() - lastMint)) / 1000);
@@ -165,14 +187,23 @@ export function createRouter(
         return;
       }
 
-      const result = await adapter.executeMint(address, FAUCET_AMOUNT);
+      const tokenCtx = getTokenContext(token as Token, chain);
+
+      // If no token address is configured for this token+chain, reject instead of
+      // minting the wrong token (adapters fall back to tEURCV when address is empty)
+      if (!tokenCtx.tokenAddress) {
+        res.status(400).json({ success: false, error: `${token} is not yet deployed on ${chain}` });
+        return;
+      }
+
+      const result = await adapter.executeMint(address, FAUCET_AMOUNT, tokenCtx);
       if (!result.success) {
         res.status(500).json({ success: false, error: "Mint failed. Check that your address has a trustline set up." });
         return;
       }
 
       faucetCooldowns.set(key, Date.now());
-      res.json({ success: true, data: { chain, address, amount: FAUCET_AMOUNT, txHash: result.txHash } });
+      res.json({ success: true, data: { chain, address, amount: FAUCET_AMOUNT, txHash: result.txHash, token } });
     } catch (error) {
       res.status(500).json({
         success: false,

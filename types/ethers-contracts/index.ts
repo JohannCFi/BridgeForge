@@ -4,7 +4,9 @@
 export type { EURCVBridge } from './EURCVBridge.js';
 export type { EURCVToken } from './EURCVToken.js';
 export type { TestEURCV } from './TestEURCV.js';
+export type { TestUSDCV } from './TestUSDCV.js';
 export * as factories from './factories/index.js';
 export { EURCVBridge__factory } from './factories/EURCVBridge__factory.js';
 export { EURCVToken__factory } from './factories/EURCVToken__factory.js';
 export { TestEURCV__factory } from './factories/TestEURCV__factory.js';
+export { TestUSDCV__factory } from './factories/TestUSDCV__factory.js';

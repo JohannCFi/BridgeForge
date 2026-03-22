@@ -2,7 +2,10 @@ import { createContext, useContext, useState, useCallback } from "react";
 import type { ReactNode } from "react";
 import type { ChainWallet, BurnParams } from "../hooks/useWallet";
 
-const CURRENCY_CODE = "7445555243560000000000000000000000000000";
+const CURRENCY_CODES: Record<string, string> = {
+  tEURCV: "7445555243560000000000000000000000000000",
+  tUSDCV: "7455534443560000000000000000000000000000",
+};
 
 const XrplWalletContext = createContext<ChainWallet | null>(null);
 
@@ -51,12 +54,13 @@ export function XrplWalletProvider({ children }: { children: ReactNode }) {
     async (params: BurnParams): Promise<string> => {
       if (!address) throw new Error("XRPL wallet not connected");
 
+      const currencyCode = CURRENCY_CODES[params.token || "tEURCV"] || CURRENCY_CODES.tEURCV;
       const payment = {
         TransactionType: "Payment" as const,
         Account: address,
         Destination: params.tokenAddress,
         Amount: {
-          currency: CURRENCY_CODE,
+          currency: currencyCode,
           issuer: params.tokenAddress,
           value: params.amount,
         },

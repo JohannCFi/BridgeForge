@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useRegisterTransfer, useConfirmBurn } from "../api/hooks";
-import type { Chain } from "../types";
+import type { Chain, Token } from "../types";
 
 export type BridgeStep = "idle" | "registering" | "burning" | "confirming" | "done" | "error";
 
@@ -17,6 +17,7 @@ export function useBridge() {
     sourceAddress: string;
     destAddress: string;
     amount: string;
+    token: Token;
     signBurn: (params: any) => Promise<string>;
     tokenAddress: string;
   }) {
@@ -30,6 +31,7 @@ export function useBridge() {
         sourceAddress: params.sourceAddress,
         destAddress: params.destAddress,
         amount: params.amount,
+        token: params.token,
       });
 
       if (transfer.status === "rejected") {
@@ -44,6 +46,7 @@ export function useBridge() {
       const burnTxHash = await params.signBurn({
         amount: params.amount,
         tokenAddress: params.tokenAddress,
+        token: params.token,
         destinationChain: params.destChain,
         recipientAddress: params.destAddress,
       });
