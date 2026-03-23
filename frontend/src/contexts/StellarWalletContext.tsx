@@ -8,6 +8,7 @@ import {
   isAllowed as freighterIsAllowed,
 } from "@stellar/freighter-api";
 import type { ChainWallet, BurnParams } from "../hooks/useWallet";
+import { STELLAR_ASSET_CODES } from "../config/chains";
 
 const DEFAULT_ASSET_CODE = "tEURCV";
 const NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
@@ -62,7 +63,7 @@ export function StellarWalletProvider({ children }: { children: ReactNode }) {
 
       const StellarSdk = await import("@stellar/stellar-sdk");
       const account = new StellarSdk.Account(address, sequence);
-      const assetCode = params.token || DEFAULT_ASSET_CODE;
+      const assetCode = STELLAR_ASSET_CODES[params.token || ""] || params.token || DEFAULT_ASSET_CODE;
       const asset = new StellarSdk.Asset(assetCode, issuerPublicKey);
 
       const transaction = new StellarSdk.TransactionBuilder(account, {

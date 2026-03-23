@@ -5,6 +5,13 @@ import type { ChainWallet, BurnParams } from "../hooks/useWallet";
 const CURRENCY_CODES: Record<string, string> = {
   tEURCV: "7445555243560000000000000000000000000000",
   tUSDCV: "7455534443560000000000000000000000000000",
+  // Production tokens: use real codes if prod issuer is set, otherwise fallback to testnet codes
+  EURCV: import.meta.env.VITE_XRPL_EURCV_ISSUER
+    ? "4555524356000000000000000000000000000000"
+    : "7445555243560000000000000000000000000000",
+  USDCV: import.meta.env.VITE_XRPL_USDCV_ISSUER
+    ? "5553444356000000000000000000000000000000"
+    : "7455534443560000000000000000000000000000",
 };
 
 const XrplWalletContext = createContext<ChainWallet | null>(null);

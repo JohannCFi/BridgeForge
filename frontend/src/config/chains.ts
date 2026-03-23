@@ -61,6 +61,17 @@ export const CHAINS: ChainMeta[] = [
   },
 ];
 
+/**
+ * Stellar asset codes: UI token names map to actual on-chain asset codes.
+ * Production tokens use their real names; testnet fallbacks use "t"-prefixed codes.
+ */
+export const STELLAR_ASSET_CODES: Record<string, string> = {
+  tEURCV: "tEURCV",
+  tUSDCV: "tUSDCV",
+  EURCV: import.meta.env.VITE_STELLAR_EURCV_ISSUER ? "EURCV" : "tEURCV",
+  USDCV: import.meta.env.VITE_STELLAR_USDCV_ISSUER ? "USDCV" : "tUSDCV",
+};
+
 export function getChain(id: string): ChainMeta | undefined {
   return CHAINS.find((c) => c.id === id);
 }

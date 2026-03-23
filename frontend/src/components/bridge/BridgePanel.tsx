@@ -273,7 +273,7 @@ export function BridgePanel({ selectedToken, onTokenChange }: { selectedToken: T
         {/* Exchange rate info */}
         {amount && parseFloat(amount) > 0 && (
           <div className="mt-2 text-xs text-zinc-600 px-1">
-            1 {selectedToken} = {tokenMeta.fiatSymbol}{tokenMeta.fiatValue}
+            1 {selectedToken} ≈ {tokenMeta.fiatSymbol}{tokenMeta.fiatValue}
           </div>
         )}
 
