@@ -111,33 +111,35 @@ export const tokenConfigs: Record<Token, Record<Chain, TokenChainConfig>> = {
   },
 
   // ── Production SG Forge tokens ──
-  // To activate: set the corresponding env vars (ETHEREUM_EURCV_PROD_ADDRESS, etc.)
+  // Default to testnet addresses so the UI can use "EURCV"/"USDCV" labels
+  // while still hitting the test contracts. When SG Forge deploys real contracts,
+  // they just set the PROD env vars and the bridge switches seamlessly.
   EURCV: {
-    ethereum: { tokenAddress: process.env.ETHEREUM_EURCV_PROD_ADDRESS || "" },
-    solana: { tokenAddress: process.env.SOLANA_EURCV_PROD_ADDRESS || "" },
+    ethereum: { tokenAddress: process.env.ETHEREUM_EURCV_PROD_ADDRESS || process.env.ETHEREUM_TOKEN_ADDRESS || "" },
+    solana: { tokenAddress: process.env.SOLANA_EURCV_PROD_ADDRESS || process.env.SOLANA_TOKEN_ADDRESS || "" },
     xrpl: {
-      tokenAddress: process.env.XRPL_EURCV_PROD_ISSUER || "",
-      currencyCode: XRPL_EURCV_PROD_CURRENCY,
-      operatorKey: process.env.XRPL_EURCV_PROD_KEY || "",
+      tokenAddress: process.env.XRPL_EURCV_PROD_ISSUER || process.env.XRPL_ISSUER_ADDRESS || "",
+      currencyCode: process.env.XRPL_EURCV_PROD_ISSUER ? XRPL_EURCV_PROD_CURRENCY : XRPL_EURCV_CURRENCY,
+      operatorKey: process.env.XRPL_EURCV_PROD_KEY || process.env.XRPL_PRIVATE_KEY || "",
     },
     stellar: {
-      tokenAddress: process.env.STELLAR_EURCV_PROD_ISSUER || "",
-      assetCode: "EURCV",
-      operatorKey: process.env.STELLAR_EURCV_PROD_KEY || "",
+      tokenAddress: process.env.STELLAR_EURCV_PROD_ISSUER || process.env.STELLAR_ISSUER_ADDRESS || "",
+      assetCode: process.env.STELLAR_EURCV_PROD_ISSUER ? "EURCV" : "tEURCV",
+      operatorKey: process.env.STELLAR_EURCV_PROD_KEY || process.env.STELLAR_PRIVATE_KEY || "",
     },
   },
   USDCV: {
-    ethereum: { tokenAddress: process.env.ETHEREUM_USDCV_PROD_ADDRESS || "" },
-    solana: { tokenAddress: process.env.SOLANA_USDCV_PROD_ADDRESS || "" },
+    ethereum: { tokenAddress: process.env.ETHEREUM_USDCV_PROD_ADDRESS || process.env.ETHEREUM_USDCV_TOKEN_ADDRESS || "" },
+    solana: { tokenAddress: process.env.SOLANA_USDCV_PROD_ADDRESS || process.env.SOLANA_USDCV_TOKEN_ADDRESS || "" },
     xrpl: {
-      tokenAddress: process.env.XRPL_USDCV_PROD_ISSUER || "",
-      currencyCode: XRPL_USDCV_PROD_CURRENCY,
-      operatorKey: process.env.XRPL_USDCV_PROD_KEY || "",
+      tokenAddress: process.env.XRPL_USDCV_PROD_ISSUER || process.env.XRPL_USDCV_ISSUER_ADDRESS || process.env.XRPL_ISSUER_ADDRESS || "",
+      currencyCode: process.env.XRPL_USDCV_PROD_ISSUER ? XRPL_USDCV_PROD_CURRENCY : XRPL_USDCV_CURRENCY,
+      operatorKey: process.env.XRPL_USDCV_PROD_KEY || process.env.XRPL_USDCV_PRIVATE_KEY || process.env.XRPL_PRIVATE_KEY || "",
     },
     stellar: {
-      tokenAddress: process.env.STELLAR_USDCV_PROD_ISSUER || "",
-      assetCode: "USDCV",
-      operatorKey: process.env.STELLAR_USDCV_PROD_KEY || "",
+      tokenAddress: process.env.STELLAR_USDCV_PROD_ISSUER || process.env.STELLAR_USDCV_ISSUER_ADDRESS || process.env.STELLAR_ISSUER_ADDRESS || "",
+      assetCode: process.env.STELLAR_USDCV_PROD_ISSUER ? "USDCV" : "tUSDCV",
+      operatorKey: process.env.STELLAR_USDCV_PROD_KEY || process.env.STELLAR_USDCV_PRIVATE_KEY || process.env.STELLAR_PRIVATE_KEY || "",
     },
   },
 };

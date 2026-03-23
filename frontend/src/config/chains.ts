@@ -13,8 +13,8 @@ export const CHAINS: ChainMeta[] = [
     tokenAddresses: {
       tEURCV: "0xc2880b20fBdF04c58CA9181e74fae3A299C15a2c",
       tUSDCV: "0x7D097e45Bb69610D4b9B8E4366Dd139E96fa5F7E",
-      EURCV: import.meta.env.VITE_ETHEREUM_EURCV_ADDRESS || "",
-      USDCV: import.meta.env.VITE_ETHEREUM_USDCV_ADDRESS || "",
+      EURCV: import.meta.env.VITE_ETHEREUM_EURCV_ADDRESS || "0xc2880b20fBdF04c58CA9181e74fae3A299C15a2c",
+      USDCV: import.meta.env.VITE_ETHEREUM_USDCV_ADDRESS || "0x7D097e45Bb69610D4b9B8E4366Dd139E96fa5F7E",
     },
   },
   {
@@ -27,8 +27,8 @@ export const CHAINS: ChainMeta[] = [
     tokenAddresses: {
       tEURCV: "8uxdRK31zZXNnpovHm13LuRoe6PYh3m1fTBU6XZ2Cfxo",
       tUSDCV: "CNGv9zosJNcF67rXgGza1617KcPR8pyKZXB5ooS8GBpv",
-      EURCV: import.meta.env.VITE_SOLANA_EURCV_ADDRESS || "",
-      USDCV: import.meta.env.VITE_SOLANA_USDCV_ADDRESS || "",
+      EURCV: import.meta.env.VITE_SOLANA_EURCV_ADDRESS || "8uxdRK31zZXNnpovHm13LuRoe6PYh3m1fTBU6XZ2Cfxo",
+      USDCV: import.meta.env.VITE_SOLANA_USDCV_ADDRESS || "CNGv9zosJNcF67rXgGza1617KcPR8pyKZXB5ooS8GBpv",
     },
   },
   {
@@ -41,8 +41,8 @@ export const CHAINS: ChainMeta[] = [
     tokenAddresses: {
       tEURCV: "rMFnd1EECtCuf42uGd48AhFGwiF3rKmnu4",
       tUSDCV: "rMFnd1EECtCuf42uGd48AhFGwiF3rKmnu4",
-      EURCV: import.meta.env.VITE_XRPL_EURCV_ISSUER || "",
-      USDCV: import.meta.env.VITE_XRPL_USDCV_ISSUER || "",
+      EURCV: import.meta.env.VITE_XRPL_EURCV_ISSUER || "rMFnd1EECtCuf42uGd48AhFGwiF3rKmnu4",
+      USDCV: import.meta.env.VITE_XRPL_USDCV_ISSUER || "rMFnd1EECtCuf42uGd48AhFGwiF3rKmnu4",
     },
   },
   {
@@ -55,8 +55,8 @@ export const CHAINS: ChainMeta[] = [
     tokenAddresses: {
       tEURCV: "GCBC3KMTFHYUI3ULK3KHYEPAEEFN5OZ44PHIMWYAJJAFQHVN7VA3L423",
       tUSDCV: "GCBC3KMTFHYUI3ULK3KHYEPAEEFN5OZ44PHIMWYAJJAFQHVN7VA3L423",
-      EURCV: import.meta.env.VITE_STELLAR_EURCV_ISSUER || "",
-      USDCV: import.meta.env.VITE_STELLAR_USDCV_ISSUER || "",
+      EURCV: import.meta.env.VITE_STELLAR_EURCV_ISSUER || "GCBC3KMTFHYUI3ULK3KHYEPAEEFN5OZ44PHIMWYAJJAFQHVN7VA3L423",
+      USDCV: import.meta.env.VITE_STELLAR_USDCV_ISSUER || "GCBC3KMTFHYUI3ULK3KHYEPAEEFN5OZ44PHIMWYAJJAFQHVN7VA3L423",
     },
   },
 ];

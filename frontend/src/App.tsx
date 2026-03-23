@@ -14,7 +14,7 @@ type View = "landing" | "app";
 function App() {
   const [view, setView] = useState<View>("landing");
   const [activeTab, setActiveTab] = useState<Tab>("bridge");
-  const [selectedToken, setSelectedToken] = useState<Token>("tEURCV");
+  const [selectedToken, setSelectedToken] = useState<Token>("EURCV");
 
   if (view === "landing") {
     return <LandingPage onLaunchApp={() => setView("app")} />;
