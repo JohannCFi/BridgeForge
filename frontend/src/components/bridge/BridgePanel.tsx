@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowDownUp, HelpCircle, Loader2 } from "lucide-react";
+import { ArrowDownUp, Loader2 } from "lucide-react";
 import type { Chain, Token } from "../../types";
 import {
   useBalance,
@@ -164,7 +164,6 @@ export function BridgePanel({ selectedToken, onTokenChange }: { selectedToken: T
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-semibold text-white">Bridge</h1>
-          <HelpCircle size={16} className="text-zinc-500" />
         </div>
         <TokenSelector value={selectedToken} onChange={onTokenChange} />
       </div>

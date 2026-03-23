@@ -6,9 +6,14 @@
 /** Supported blockchain networks */
 export type Chain = "ethereum" | "solana" | "xrpl" | "stellar";
 
-/** Supported tokens */
-export type Token = "tEURCV" | "tUSDCV";
-export const SUPPORTED_TOKENS: Token[] = ["tEURCV", "tUSDCV"];
+/** Supported tokens
+ * - tEURCV / tUSDCV : testnet versions (current POC)
+ * - EURCV / USDCV   : production SG Forge tokens
+ * To switch to production, deploy real contracts and set the corresponding
+ * ETHEREUM_EURCV_TOKEN_ADDRESS (etc.) env vars. The bridge handles both seamlessly.
+ */
+export type Token = "tEURCV" | "tUSDCV" | "EURCV" | "USDCV";
+export const SUPPORTED_TOKENS: Token[] = ["tEURCV", "tUSDCV", "EURCV", "USDCV"];
 
 /** Transfer status lifecycle */
 export type TransferStatus =

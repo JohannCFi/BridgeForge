@@ -50,7 +50,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         {/* Footer */}
         <div className="px-6 py-4 border-t border-white/[0.08]">
           <p className="text-[10px] text-zinc-600 uppercase tracking-widest">
-            Testnet
+            {import.meta.env.VITE_NETWORK_MODE === "mainnet" ? "Mainnet" : "Testnet"}
           </p>
         </div>
       </aside>

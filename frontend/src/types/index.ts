@@ -1,7 +1,7 @@
 export type Chain = "ethereum" | "solana" | "xrpl" | "stellar";
 
-export type Token = "tEURCV" | "tUSDCV";
-export const SUPPORTED_TOKENS: Token[] = ["tEURCV", "tUSDCV"];
+export type Token = "tEURCV" | "tUSDCV" | "EURCV" | "USDCV";
+export const SUPPORTED_TOKENS: Token[] = ["tEURCV", "tUSDCV", "EURCV", "USDCV"];
 
 export type TransferStatus =
   | "pending"

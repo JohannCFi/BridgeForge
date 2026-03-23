@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const chains = ["ethereum", "solana", "xrpl", "stellar"] as const;
-const tokens = ["tEURCV", "tUSDCV"] as const;
+const tokens = ["tEURCV", "tUSDCV", "EURCV", "USDCV"] as const;
 
 export const createTransferSchema = z.object({
   sourceChain: z.enum(chains),

@@ -3,7 +3,7 @@
 // All chain-specific settings: RPCs, contract addresses, etc.
 // ============================================================
 
-import { Chain, Token } from "../types";
+import { Chain, Token } from "../types/index.js";
 
 export interface ChainConfig {
   chain: Chain;
@@ -77,7 +77,12 @@ export interface TokenChainConfig {
 const XRPL_EURCV_CURRENCY = "7445555243560000000000000000000000000000"; // "tEURCV"
 const XRPL_USDCV_CURRENCY = "7455534443560000000000000000000000000000"; // "tUSDCV"
 
+// XRPL currency codes for production tokens
+const XRPL_EURCV_PROD_CURRENCY = "4555524356000000000000000000000000000000"; // "EURCV"
+const XRPL_USDCV_PROD_CURRENCY = "5553444356000000000000000000000000000000"; // "USDCV"
+
 export const tokenConfigs: Record<Token, Record<Chain, TokenChainConfig>> = {
+  // ── Testnet tokens (current POC) ──
   tEURCV: {
     ethereum: { tokenAddress: process.env.ETHEREUM_TOKEN_ADDRESS || "" },
     solana: { tokenAddress: process.env.SOLANA_TOKEN_ADDRESS || "" },
@@ -102,6 +107,37 @@ export const tokenConfigs: Record<Token, Record<Chain, TokenChainConfig>> = {
       tokenAddress: process.env.STELLAR_USDCV_ISSUER_ADDRESS || process.env.STELLAR_ISSUER_ADDRESS || "",
       assetCode: "tUSDCV",
       operatorKey: process.env.STELLAR_USDCV_PRIVATE_KEY || process.env.STELLAR_PRIVATE_KEY || "",
+    },
+  },
+
+  // ── Production SG Forge tokens ──
+  // To activate: set the corresponding env vars (ETHEREUM_EURCV_PROD_ADDRESS, etc.)
+  EURCV: {
+    ethereum: { tokenAddress: process.env.ETHEREUM_EURCV_PROD_ADDRESS || "" },
+    solana: { tokenAddress: process.env.SOLANA_EURCV_PROD_ADDRESS || "" },
+    xrpl: {
+      tokenAddress: process.env.XRPL_EURCV_PROD_ISSUER || "",
+      currencyCode: XRPL_EURCV_PROD_CURRENCY,
+      operatorKey: process.env.XRPL_EURCV_PROD_KEY || "",
+    },
+    stellar: {
+      tokenAddress: process.env.STELLAR_EURCV_PROD_ISSUER || "",
+      assetCode: "EURCV",
+      operatorKey: process.env.STELLAR_EURCV_PROD_KEY || "",
+    },
+  },
+  USDCV: {
+    ethereum: { tokenAddress: process.env.ETHEREUM_USDCV_PROD_ADDRESS || "" },
+    solana: { tokenAddress: process.env.SOLANA_USDCV_PROD_ADDRESS || "" },
+    xrpl: {
+      tokenAddress: process.env.XRPL_USDCV_PROD_ISSUER || "",
+      currencyCode: XRPL_USDCV_PROD_CURRENCY,
+      operatorKey: process.env.XRPL_USDCV_PROD_KEY || "",
+    },
+    stellar: {
+      tokenAddress: process.env.STELLAR_USDCV_PROD_ISSUER || "",
+      assetCode: "USDCV",
+      operatorKey: process.env.STELLAR_USDCV_PROD_KEY || "",
     },
   },
 };

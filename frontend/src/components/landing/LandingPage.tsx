@@ -404,7 +404,7 @@ export function LandingPage({ onLaunchApp }: LandingPageProps) {
         </div>
         <div className="sg-footer-bottom">
           <p>© 2026 SG Forge — Société Générale Group. All rights reserved.</p>
-          <p className="sg-footer-env">Testnet Environment</p>
+          <p className="sg-footer-env">{import.meta.env.VITE_NETWORK_MODE === "mainnet" ? "Production Environment" : "Testnet Environment"}</p>
         </div>
       </footer>
     </div>
