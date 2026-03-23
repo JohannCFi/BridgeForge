@@ -14,7 +14,7 @@ const WALLETS: WalletOption[] = [
   { id: "rabby",          name: "Rabby",           icon: "/icons/rabby.svg",          chains: ["ethereum"] },
   { id: "walletconnect",  name: "WalletConnect",  icon: "/icons/walletconnect.svg",  chains: ["ethereum"] },
   { id: "crossmark",      name: "Crossmark",      icon: "/icons/crossmark.svg",      chains: ["xrpl"] },
-  { id: "gemwallet",      name: "GemWallet",      icon: "/icons/logo.svg",      chains: ["xrpl"] },
+  { id: "gemwallet",      name: "GemWallet",      icon: "/icons/gemwallet.svg",      chains: ["xrpl"] },
   { id: "freighter",      name: "Freighter",      icon: "/icons/image.png",          chains: ["stellar"] },
 ];
 
