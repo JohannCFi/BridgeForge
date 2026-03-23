@@ -2,6 +2,9 @@ import Bull from "bull";
 import prisma from "../db/client.js";
 import { Chain, Token, ChainAdapter } from "../types/index.js";
 import { getTokenContext } from "../config/index.js";
+import { createLogger } from "../utils/logger.js";
+
+const log = createLogger("MintQueue");
 
 const MINT_ATTEMPTS = 10;
 const REFUND_ATTEMPTS = 5;
@@ -40,9 +43,9 @@ export class MintQueue {
     });
 
     this.queue.on("failed", async (job, err) => {
-      console.error(`[MintQueue] Mint attempt ${job.attemptsMade}/${MINT_ATTEMPTS} failed for ${job.data.transferId}:`, err.message);
+      log.error("Mint attempt failed", { transferId: job.data.transferId, attempt: job.attemptsMade, maxAttempts: MINT_ATTEMPTS, error: err.message });
       if (job.attemptsMade >= (job.opts.attempts || MINT_ATTEMPTS)) {
-        console.warn(`[MintQueue] All mint attempts exhausted for ${job.data.transferId}, initiating refund`);
+        log.warn("All mint attempts exhausted, initiating refund", { transferId: job.data.transferId });
         await this.enqueueRefund(job.data.transferId);
       }
     });
@@ -52,9 +55,9 @@ export class MintQueue {
     });
 
     this.refundQueue.on("failed", async (job, err) => {
-      console.error(`[MintQueue] Refund attempt ${job.attemptsMade}/${REFUND_ATTEMPTS} failed for ${job.data.transferId}:`, err.message);
+      log.error("Refund attempt failed", { transferId: job.data.transferId, attempt: job.attemptsMade, maxAttempts: REFUND_ATTEMPTS, error: err.message });
       if (job.attemptsMade >= (job.opts.attempts || REFUND_ATTEMPTS)) {
-        console.error(`[MintQueue] CRITICAL: All refund attempts exhausted for ${job.data.transferId} — manual intervention required`);
+        log.error("CRITICAL: All refund attempts exhausted — manual intervention required", { transferId: job.data.transferId });
         await prisma.transfer.update({
           where: { id: job.data.transferId },
           data: {
@@ -86,6 +89,12 @@ export class MintQueue {
     const transfer = await prisma.transfer.findUniqueOrThrow({
       where: { id: transferId },
     });
+
+    // Guard: only mint if still in "minting" status (prevents double-mint)
+    if (transfer.status !== "minting") {
+      log.warn("Skipping mint: unexpected status", { transferId, status: transfer.status });
+      return;
+    }
 
     const adapter = this.adapters[transfer.destChain as Chain];
     const token = (transfer.token || "tEURCV") as Token;
@@ -146,7 +155,7 @@ export class MintQueue {
       },
     });
 
-    console.log(`[MintQueue] Refund successful for ${transferId}: ${result.txHash}`);
+    log.info("Refund successful", { transferId, txHash: result.txHash });
   }
 
   async close(): Promise<void> {

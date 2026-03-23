@@ -3,3 +3,4 @@ dist/
 .env
 frontend/.env
 *.log
+Rapport-Securite.md

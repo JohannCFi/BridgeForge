@@ -82,15 +82,20 @@ export class TransferService {
       throw new Error(`Amount mismatch: expected ${transfer.amount}, got ${proof.amount}`);
     }
 
-    // Update to burn_confirmed
-    await prisma.transfer.update({
-      where: { id: transferId },
+    // Optimistic lock: only update if status is still "ready"
+    // Prevents double-mint from concurrent confirmBurn calls
+    const updated = await prisma.transfer.updateMany({
+      where: { id: transferId, status: "ready" },
       data: {
         status: "burn_confirmed",
         burnTxHash,
         burnConfirmedAt: new Date(),
       },
     });
+
+    if (updated.count === 0) {
+      throw new Error(`Transfer ${transferId} was already processed by another request`);
+    }
 
     // Create attestation
     // For ETH source: transferId comes from BurnForBridge event (keccak256(domain, nonce))

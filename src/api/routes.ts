@@ -4,11 +4,29 @@
 // ============================================================
 
 import { Router, Request, Response } from "express";
+import rateLimit from "express-rate-limit";
 import { TransferService } from "../services/transfer.js";
 import { ChainStatusService } from "../services/chain-status.js";
 import { Chain, Token, ChainAdapter, ApiResponse } from "../types/index.js";
 import { createTransferSchema, confirmBurnSchema, transfersQuerySchema, faucetSchema, balanceQuerySchema } from "./validation.js";
 import { chainConfigs, tokenConfigs, getTokenContext } from "../config/index.js";
+
+// Rate limiters
+const transferLimiter = rateLimit({
+  windowMs: 60_000,       // 1 minute
+  max: 10,                // 10 transfers per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many transfer requests, please try again later" },
+});
+
+const faucetLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 3,                 // 3 faucet requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many faucet requests, please try again later" },
+});
 
 export function createRouter(
   transferService: TransferService,
@@ -23,7 +41,7 @@ export function createRouter(
    * POST /api/v1/transfer
    * Register a transfer intent. Returns transfer in ready or rejected status.
    */
-  router.post("/v1/transfer", async (req: Request, res: Response) => {
+  router.post("/v1/transfer", transferLimiter, async (req: Request, res: Response) => {
     try {
       const parsed = createTransferSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -163,7 +181,7 @@ export function createRouter(
   const FAUCET_AMOUNT = "1000";
   const FAUCET_COOLDOWN_MS = 60_000;
 
-  router.post("/v1/faucet", async (req: Request, res: Response) => {
+  router.post("/v1/faucet", faucetLimiter, async (req: Request, res: Response) => {
     try {
       const parsed = faucetSchema.safeParse(req.body);
       if (!parsed.success) {

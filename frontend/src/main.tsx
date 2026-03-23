@@ -14,6 +14,7 @@ import "@rainbow-me/rainbowkit/styles.css";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import "./index.css";
 import App from "./App";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { wagmiConfig } from "./config/wagmi";
 import { XrplWalletProvider } from "./contexts/XrplWalletContext";
 import { StellarWalletProvider } from "./contexts/StellarWalletContext";
@@ -64,8 +65,10 @@ function Providers({ children }: { children: React.ReactNode }) {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <Providers>
-      <App />
-    </Providers>
+    <ErrorBoundary>
+      <Providers>
+        <App />
+      </Providers>
+    </ErrorBoundary>
   </StrictMode>
 );
