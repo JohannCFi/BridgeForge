@@ -15,7 +15,7 @@ const WALLETS: WalletOption[] = [
   { id: "walletconnect",  name: "WalletConnect",  icon: "/icons/walletconnect.svg",  chains: ["ethereum"] },
   { id: "crossmark",      name: "Crossmark",      icon: "/icons/crossmark.svg",      chains: ["xrpl"] },
   { id: "gemwallet",      name: "GemWallet",      icon: "/icons/gemwallet.svg",      chains: ["xrpl"] },
-  { id: "freighter",      name: "Freighter",      icon: "/icons/image.png",          chains: ["stellar"] },
+  { id: "freighter",      name: "Freighter",      icon: "/icons/freighter.png",      chains: ["stellar"] },
 ];
 
 interface WalletModalProps {
